@@ -17,6 +17,7 @@ target_include_directories(odrive_hardware_interface PRIVATE ${CMAKE_CURRENT_SOU
 
 ament_target_dependencies(
   odrive_hardware_interface
+  SYSTEM
   rclcpp
   hardware_interface
   pluginlib
