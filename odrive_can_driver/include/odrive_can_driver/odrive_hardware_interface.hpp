@@ -31,6 +31,13 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
   virtual hardware_interface::return_type write(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
+
+protected:
+  // velocity, position, effort
+  std::vector<double> position_state_;
+  std::vector<double> velocity_state_;
+  std::vector<double> effortState;
+  std::vector<double> command_;
 };
 }  // namespace odrive_can_driver
 
