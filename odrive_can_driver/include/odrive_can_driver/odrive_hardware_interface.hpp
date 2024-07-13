@@ -3,11 +3,44 @@
 #define __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
 
 #include <array>
+#include <cstdint>
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
 
 namespace odrive_can_driver
 {
+enum class CommandId : uint8_t {
+  kNoCommand = 0x000,
+  kMotorError = 0x003,
+  kEncoderError = 0x004,
+  kAxisRequestedState = 0x007,
+  kEncoderEstimates = 0x009,
+  kControllerModes = 0x00B,
+  kInputPos = 0x00C,
+  kInputVel = 0x00D,
+  kInputTorque = 0x00E,
+  kIq = 0x014,
+  kReboot = 0x016,
+  kClearErrors = 0x018,
+  kControllerError = 0x01D,
+};
+struct MotorAxis
+{
+  std::string joint_name;
+  uint8_t node_id{0};
+
+  double position_state{0};
+  double velocity_state{0};
+  double effort_state{0};
+
+  CommandId active_command{CommandId::kNoCommand};
+  double position_command{0};
+  double velocity_command{0};
+  double effort_command{0};
+
+  bool timeout_error{false};
+  bool error{false};  // Not counting timeout error
+};
 class OdriveHardwareInterface : public hardware_interface::ActuatorInterface
 {
 public:
@@ -42,17 +75,10 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 protected:
-  static const uint8_t kMaxNodeId = 63;
-  std::array<uint8_t, 2> node_id_;
-
-  std::array<double, 2> position_state_;
-  std::array<double, 2> velocity_state_;
-  std::array<double, 2> effort_state_;
-  std::array<double, 2> position_command_;
-  std::array<double, 2> velocity_command_;
-  std::array<double, 2> effort_command_;
-  std::array<std::string, 2> active_command_;
+  std::array<MotorAxis, 2> motor_axis_;
+  uint8_t number_of_joints_{0};
 };
+
 }  // namespace odrive_can_driver
 
 #endif  // __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
