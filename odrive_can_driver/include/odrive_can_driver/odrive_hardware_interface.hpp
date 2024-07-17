@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
+#include <ros2_socketcan/socket_can_receiver.hpp>
+#include <ros2_socketcan/socket_can_sender.hpp>
 
 namespace odrive_can_driver
 {
@@ -77,6 +79,9 @@ public:
 protected:
   std::array<MotorAxis, 2> motor_axis_;
   uint8_t number_of_joints_{0};
+  std::unique_ptr<drivers::socketcan::SocketCanReceiver> receiver_;
+  std::unique_ptr<drivers::socketcan::SocketCanSender> sender_;
+  std::string can_interface_;
 };
 
 }  // namespace odrive_can_driver

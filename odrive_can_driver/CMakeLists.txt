@@ -10,6 +10,7 @@ find_package(rclcpp REQUIRED)
 find_package(hardware_interface REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
+find_package(ros2_socketcan REQUIRED)
 
 add_library(odrive_hardware_interface SHARED src/odrive_hardware_interface.cpp)
 
@@ -21,7 +22,8 @@ ament_target_dependencies(
   rclcpp
   hardware_interface
   pluginlib
-  rclcpp_lifecycle)
+  rclcpp_lifecycle
+  ros2_socketcan)
 
 pluginlib_export_plugin_description_file(hardware_interface odrive_can_driver.xml)
 

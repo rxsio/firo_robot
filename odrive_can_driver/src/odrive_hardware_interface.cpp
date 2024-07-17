@@ -84,6 +84,14 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
     hardware_interface::CallbackReturn::SUCCESS) {
     return hardware_interface::CallbackReturn::ERROR;
   }
+
+  auto can_interface_it = info_.hardware_parameters.find("interface");
+  if (can_interface_it == info_.hardware_parameters.end()) {
+    RCLCPP_FATAL(rclcpp::get_logger("odrive_hardware_interface"), "No CAN interface specified");
+    return hardware_interface::CallbackReturn::ERROR;
+  }
+  can_interface_ = can_interface_it->second;
+
   number_of_joints_ = info_.joints.size();
   switch (number_of_joints_) {
     case 1: {
@@ -139,10 +147,17 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
-  const rclcpp_lifecycle::State & previous_state)
+  const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Setup SocketCan
-  (void)previous_state;
+  try {
+    receiver_ = std::make_unique<drivers::socketcan::SocketCanReceiver>(can_interface_);
+    sender_ = std::make_unique<drivers::socketcan::SocketCanSender>(can_interface_);
+  } catch (const std::exception & e) {
+    RCLCPP_FATAL(
+      rclcpp::get_logger("odrive_hardware_interface"), "Failed to open CAN interface: %s",
+      e.what());
+    return hardware_interface::CallbackReturn::ERROR;
+  }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
