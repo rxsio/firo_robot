@@ -1,6 +1,9 @@
 #ifndef ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
 #define ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
+#include <array>
 #include <atomic>
+#include <hardware_interface/types/hardware_interface_type_values.hpp>
+#include <limits>
 #include <string>
 namespace odrive_can_driver
 {
@@ -19,6 +22,20 @@ enum class CommandId : uint8_t {
   kClearErrors = 0x018,
   kControllerError = 0x01D,
 };
+
+constexpr std::array<std::string_view, 3> kSupportedInterfaces{
+  static_cast<const char *>(hardware_interface::HW_IF_POSITION),
+  static_cast<const char *>(hardware_interface::HW_IF_VELOCITY),
+  static_cast<const char *>(hardware_interface::HW_IF_EFFORT)};
+
+constexpr std::array<std::pair<std::string_view, CommandId>, 3> kInterfaceToCommandId{
+  {{static_cast<const char *>(hardware_interface::HW_IF_POSITION), CommandId::kInputPos},
+   {static_cast<const char *>(hardware_interface::HW_IF_VELOCITY), CommandId::kInputVel},
+   {static_cast<const char *>(hardware_interface::HW_IF_EFFORT), CommandId::kInputTorque}}};
+
+CommandId InterfaceToCommandId(const std::string_view & interface);
+bool IsSupportedInterface(const std::string & interface);
+
 class MotorAxis
 {
 public:
@@ -86,10 +103,24 @@ public:
     UpdateEffortState();
     return effort_state_cache;
   }
-  [[nodiscard]] CommandId GetCommand()
+  [[nodiscard]] CommandId GetCommandId()
   {
     UpdateCommand();
     return command_cache;
+  }
+  [[nodiscard]] auto GetCommandValue()
+  {
+    switch (GetCommandId()) {
+      case CommandId::kInputPos:
+        return GetPositionCommand();
+      case CommandId::kInputVel:
+        return GetVelocityCommand();
+      case CommandId::kInputTorque:
+        return GetEffortCommand();
+      default:
+        // This should never occur
+        return std::numeric_limits<double>::quiet_NaN();
+    }
   }
   [[nodiscard]] double GetPositionCommand()
   {

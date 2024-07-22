@@ -16,33 +16,6 @@ namespace odrive_can_driver
 
 const uint8_t kMaxNodeId = 63;
 
-constexpr std::array<std::string_view, 3> kSupportedInterfaces{
-  static_cast<const char *>(hardware_interface::HW_IF_POSITION),
-  static_cast<const char *>(hardware_interface::HW_IF_VELOCITY),
-  static_cast<const char *>(hardware_interface::HW_IF_EFFORT)};
-
-constexpr std::array<std::pair<std::string_view, CommandId>, 3> kInterfaceToCommandId{
-  {{static_cast<const char *>(hardware_interface::HW_IF_POSITION), CommandId::kInputPos},
-   {static_cast<const char *>(hardware_interface::HW_IF_VELOCITY), CommandId::kInputVel},
-   {static_cast<const char *>(hardware_interface::HW_IF_EFFORT), CommandId::kInputTorque}}};
-
-CommandId InterfaceToCommandId(const std::string_view & interface)
-{
-  const auto * const interface_command_pair = std::find_if(
-    kInterfaceToCommandId.begin(), kInterfaceToCommandId.end(),
-    [&interface](const auto & pair) { return pair.first == interface; });
-  if (interface_command_pair != kInterfaceToCommandId.end()) {
-    return interface_command_pair->second;
-  }
-  return CommandId::kNoCommand;
-}
-
-bool IsSupportedInterface(const std::string & interface)
-{
-  return kSupportedInterfaces.end() !=
-         std::find(kSupportedInterfaces.begin(), kSupportedInterfaces.end(), interface);
-}
-
 bool IsPositiveInteger(const std::string & input)
 {
   return !input.empty() && std::find_if(input.begin(), input.end(), [](unsigned char digit) {
@@ -147,7 +120,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  return odrive_can_.Configure(can_interface_, number_of_joints_);
+  return odrive_can_.Init(can_interface_, motor_axis_, number_of_joints_);
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(
@@ -250,11 +223,11 @@ hardware_interface::return_type OdriveHardwareInterface::prepare_command_mode_sw
 
         // 1. Previous interface must be stopped if it's active
         // 2. No interface can be stopped if no interface is active
-        error |= (motor_axis.GetCommand() != CommandId::kNoCommand) == stop_interface.has_value();
+        error |= (motor_axis.GetCommandId() != CommandId::kNoCommand) == stop_interface.has_value();
 
         // Interface being stopped must be the same as previously active interface
         error |= stop_interface.has_value() &&
-                 InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommand();
+                 InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommandId();
 
         break;
       }
@@ -278,7 +251,7 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
       auto stop_interface = GetJointInterface(stop_interfaces, motor_axis.GetJointName());
       if (
         stop_interface.has_value() &&
-        InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommand()) {
+        InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommandId()) {
         motor_axis.SetCommand(CommandId::kNoCommand);
         // TODO: disable motor
         // Set torque to 0
@@ -306,7 +279,7 @@ hardware_interface::return_type OdriveHardwareInterface::write(
 
   for (size_t i = 0; i < number_of_joints_; ++i) {
     auto & motor_axis = motor_axis_.at(i);
-    if (motor_axis.GetCommand() != CommandId::kNoCommand) {
+    if (motor_axis.GetCommandId() != CommandId::kNoCommand) {
       if (motor_axis.GetTimeoutError()) {
         // send clear errors command
       }
@@ -316,7 +289,6 @@ hardware_interface::return_type OdriveHardwareInterface::write(
 
   return hardware_interface::return_type::OK;
 }
-
 }  // namespace odrive_can_driver
 
 PLUGINLIB_EXPORT_CLASS(
