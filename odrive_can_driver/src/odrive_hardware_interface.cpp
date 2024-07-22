@@ -76,18 +76,6 @@ int NumberOfInterfaces(const std::vector<std::string> & keys, const std::string 
   return count;
 }
 
-void CanThread(
-  // std::array<MotorAxis, 2> & /*motor_axis_*/,
-  const drivers::socketcan::SocketCanReceiver & /*receiver*/,
-  const drivers::socketcan::SocketCanSender & /*sender*/)
-{
-  while (true) {
-    // Receive CAN messages
-    // Update state
-    // Send CAN messages
-  }
-}
-
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
   const hardware_interface::HardwareInfo & hardware_info)
 {
@@ -159,20 +147,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  try {
-    drivers::socketcan::SocketCanReceiver receiver(can_interface_);
-    drivers::socketcan::SocketCanSender sender(can_interface_);
-    can_thread_ = std::thread(
-      CanThread,
-      // motor_axis_,
-      std::move(receiver), std::move(sender));
-  } catch (const std::exception & e) {
-    RCLCPP_FATAL(
-      rclcpp::get_logger("odrive_hardware_interface"), "Failed to open CAN interface: %s",
-      e.what());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
-  return hardware_interface::CallbackReturn::SUCCESS;
+  return odrive_can_.Configure(can_interface_, number_of_joints_);
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(

@@ -7,9 +7,9 @@
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
 #include <odrive_can_driver/odrive_axis.hpp>
+#include <odrive_can_driver/odrive_can.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
-#include <thread>
 
 namespace odrive_can_driver
 {
@@ -50,7 +50,7 @@ private:
   std::array<MotorAxis, 2> motor_axis_;
   uint8_t number_of_joints_{0};
   std::string can_interface_;
-  std::thread can_thread_;
+  OdriveCan odrive_can_{motor_axis_};
 };
 
 }  // namespace odrive_can_driver

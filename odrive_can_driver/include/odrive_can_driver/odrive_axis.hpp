@@ -1,3 +1,5 @@
+#ifndef ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
+#define ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
 #include <atomic>
 #include <string>
 namespace odrive_can_driver
@@ -157,3 +159,4 @@ private:
   std::atomic<bool> error_{};
 };
 }  // namespace odrive_can_driver
+#endif  // ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
