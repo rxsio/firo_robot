@@ -13,10 +13,10 @@ namespace odrive_can_driver
   return {node_id, command_id};
 }
 
-void CanReadThread::Receive()
+void CanReadThread::Receive(std::chrono::nanoseconds timeout)
 {
   std::array<std::byte, 8> data{};
-  auto can_id = receiver_.receive(static_cast<void *>(data.data()), std::chrono::milliseconds(0));
+  auto can_id = receiver_.receive(static_cast<void *>(data.data()), timeout);
   if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
     return;
   }

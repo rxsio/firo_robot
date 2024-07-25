@@ -12,6 +12,7 @@
 #include <odrive_can_driver/odrive_axis.hpp>
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logging.hpp>
+#include <rclcpp/time.hpp>
 #include <ros2_socketcan/socket_can_id.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
@@ -155,15 +156,17 @@ public:
   }
   void operator()()
   {
-    // auto now = rclcpp::Clock().now();
+    auto deadline = time_ + period_;
     for (uint8_t i = 0; i < number_of_joints_; i++) {
       auto & motor_axis = motor_axis_.get().at(i);
       const auto node_id = motor_axis.GetNodeId();
       SendRTR(node_id, CommandId::kEncoderEstimates);
       SendRTR(node_id, CommandId::kIq);
-      SendRTR(node_id, CommandId::kControllerError);
-      SendRTR(node_id, CommandId::kMotorError);
-      SendRTR(node_id, CommandId::kEncoderError);
+      // Motor errors are should be set to be sent cyclically
+      // They do not need to be precisely synchronized with the control loop
+      // SendRTR(node_id, CommandId::kControllerError);
+      // SendRTR(node_id, CommandId::kMotorError);
+      // SendRTR(node_id, CommandId::kEncoderError);
     }
   };
 
@@ -173,6 +176,8 @@ private:
   std::thread thread_;
   drivers::socketcan::SocketCanReceiver receiver_;
   drivers::socketcan::SocketCanSender sender_;
+  rclcpp::Time time_{0};
+  rclcpp::Duration period_{0, 0};
 
   void SendRTR(
     const uint8_t node_id, CommandId command,
@@ -183,7 +188,7 @@ private:
       timeout);
   }
 
-  void Receive();
+  void Receive(std::chrono::nanoseconds timeout);
 };
 
 template <odrive_can_driver::CommandId C>
