@@ -1,6 +1,8 @@
 #ifndef ODRIVE_CAN_DRIVER__ODRIVE_CAN_HPP_
 #define ODRIVE_CAN_DRIVER__ODRIVE_CAN_HPP_
 
+#include <sys/types.h>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -62,12 +64,24 @@ constexpr auto ToUnsignedBuffer(const T value)
   }
 };
 
+template <typename T>
+constexpr auto FromUnsignedBuffer(UnsignedEquivalent<T> value)
+{
+  if constexpr (std::is_integral_v<T>) {
+    return static_cast<T>(value);
+  } else {
+    T result;
+    std::memcpy(&result, &value, sizeof(value));
+    return result;
+  }
+}
+
 template <typename... T>
 constexpr std::array<std::byte, (sizeof(T) + ...)> PackToLittleEndian(const T... args)
 {
   std::array<std::byte, (sizeof(T) + ...)> result{};
   size_t result_index = 0;
-  auto pack_to_result = [&result, &result_index ](auto && arg) constexpr
+  auto pack_single = [&result, &result_index ](auto && arg) constexpr
   {
     static_assert(
       std::is_floating_point_v<std::decay_t<decltype(arg)>> ||
@@ -75,136 +89,56 @@ constexpr std::array<std::byte, (sizeof(T) + ...)> PackToLittleEndian(const T...
       "Only floating point and integral types (including chars) are supported");
     auto unsigned_arg = ToUnsignedBuffer(arg);
     const uint8_t k_byte_mask = 0xFF;
-    const uint8_t k_bits_in_byte = 8;
     for (size_t arg_index = 0; arg_index < sizeof(unsigned_arg); ++arg_index) {
-      result.at(result_index) =
-        std::byte((unsigned_arg >> arg_index * k_bits_in_byte) & k_byte_mask);
+      result.at(result_index) = std::byte((unsigned_arg >> arg_index * 8) & k_byte_mask);
       ++result_index;
     }
   };
 
-  (pack_to_result(args), ...);
+  (pack_single(args), ...);
 
   return result;
 }
 
-class CanID
+template <typename... T>
+constexpr std::tuple<T...> UnpackFromLittleEndian(
+  const std::array<std::byte, (sizeof(T) + ...)> & data)
 {
-private:
-  static const uint8_t kCommandIdLength = 5;
+  std::tuple<T...> result;
+  size_t data_index = 0;
 
-  [[nodiscard]] static drivers::socketcan::CanId CreateCanId(
-    const uint16_t node_id, uint16_t bus_time, CommandId command_id,
-    drivers::socketcan::FrameType frame_type)
+  auto unpack_single = [&data, &data_index ](auto & arg) constexpr
   {
-    return {
-      static_cast<uint32_t>(
-        static_cast<uint16_t>(node_id << kCommandIdLength) | static_cast<uint16_t>(command_id)),
-      bus_time, frame_type, drivers::socketcan::StandardFrame};
-  }
+    static_assert(
+      std::is_floating_point_v<std::decay_t<decltype(arg)>> ||
+        std::is_integral_v<std::decay_t<decltype(arg)>>,
+      "Only floating point and integral types (including chars) are supported");
+    using UnsignedBuffer = UnsignedEquivalent<decltype(arg)>;
+    UnsignedBuffer unsigned_buffer = 0;
 
-public:
-  CanID() = default;
-  explicit CanID(const uint16_t node_id, uint16_t bus_time)
-  : motor_error_{CreateCanId(
-      node_id, bus_time, CommandId::kMotorError, drivers::socketcan::FrameType::DATA)},
-    motor_error_rtr_{CreateCanId(
-      node_id, bus_time, CommandId::kMotorError, drivers::socketcan::FrameType::REMOTE)},
-    encoder_error_{CreateCanId(
-      node_id, bus_time, CommandId::kEncoderError, drivers::socketcan::FrameType::DATA)},
-    encoder_error_rtr_{CreateCanId(
-      node_id, bus_time, CommandId::kEncoderError, drivers::socketcan::FrameType::REMOTE)},
-    axis_requested_state_{CreateCanId(
-      node_id, bus_time, CommandId::kAxisRequestedState, drivers::socketcan::FrameType::DATA)},
-    encoder_estimates_{CreateCanId(
-      node_id, bus_time, CommandId::kEncoderEstimates, drivers::socketcan::FrameType::DATA)},
-    encoder_estimates_rtr_{CreateCanId(
-      node_id, bus_time, CommandId::kEncoderEstimates, drivers::socketcan::FrameType::REMOTE)},
-    controller_modes_{CreateCanId(
-      node_id, bus_time, CommandId::kControllerModes, drivers::socketcan::FrameType::DATA)},
-    input_pos_{
-      CreateCanId(node_id, bus_time, CommandId::kInputPos, drivers::socketcan::FrameType::DATA)},
-    input_vel_{
-      CreateCanId(node_id, bus_time, CommandId::kInputVel, drivers::socketcan::FrameType::DATA)},
-    input_torque_{
-      CreateCanId(node_id, bus_time, CommandId::kInputTorque, drivers::socketcan::FrameType::DATA)},
-    iq_{CreateCanId(node_id, bus_time, CommandId::kIq, drivers::socketcan::FrameType::DATA)},
-    iq_rtr_{CreateCanId(node_id, bus_time, CommandId::kIq, drivers::socketcan::FrameType::REMOTE)},
-    reboot_{
-      CreateCanId(node_id, bus_time, CommandId::kReboot, drivers::socketcan::FrameType::DATA)},
-    clear_errors_{
-      CreateCanId(node_id, bus_time, CommandId::kClearErrors, drivers::socketcan::FrameType::DATA)},
-    controller_error_{CreateCanId(
-      node_id, bus_time, CommandId::kControllerError, drivers::socketcan::FrameType::DATA)},
-    controller_error_rtr_{CreateCanId(
-      node_id, bus_time, CommandId::kControllerError, drivers::socketcan::FrameType::REMOTE)}
-  {
-  }
+    for (size_t arg_index = 0; arg_index < sizeof(UnsignedBuffer); ++arg_index) {
+      unsigned_buffer |= static_cast<UnsignedBuffer>(std::to_integer<uint8_t>(data.at(data_index)))
+                         << (arg_index * 8);
+      ++data_index;
+    }
+    arg = FromUnsignedBuffer<std::remove_reference_t<decltype(arg)>>(unsigned_buffer);
+  };
 
-  template <bool RTR = false>
-  const drivers::socketcan::CanId & operator[](const CommandId command_id) const
-  {
-    switch (command_id) {
-      case CommandId::kMotorError: {
-        return RTR ? motor_error_rtr_ : motor_error_;
-      }
-      case CommandId::kEncoderError: {
-        return RTR ? encoder_error_rtr_ : encoder_error_;
-      }
-      case CommandId::kAxisRequestedState: {
-        return axis_requested_state_;
-      }
-      case CommandId::kEncoderEstimates: {
-        return RTR ? encoder_estimates_rtr_ : encoder_estimates_;
-      }
-      case CommandId::kControllerModes: {
-        return controller_modes_;
-      }
-      case CommandId::kInputPos: {
-        return input_pos_;
-      }
-      case CommandId::kInputVel: {
-        return input_vel_;
-      }
-      case CommandId::kInputTorque: {
-        return input_torque_;
-      }
-      case CommandId::kIq: {
-        return RTR ? iq_rtr_ : iq_;
-      }
-      case CommandId::kReboot: {
-        return reboot_;
-      }
-      case CommandId::kClearErrors: {
-        return clear_errors_;
-      }
-      case CommandId::kControllerError: {
-        return RTR ? controller_error_rtr_ : controller_error_;
-      }
-      default: {
-        throw std::invalid_argument("Invalid command ID");
-      }
-    };
-  }
+  std::apply([&unpack_single](auto &... args) { (unpack_single(args), ...); }, result);
 
-private:
-  drivers::socketcan::CanId motor_error_;
-  drivers::socketcan::CanId motor_error_rtr_;
-  drivers::socketcan::CanId encoder_error_;
-  drivers::socketcan::CanId encoder_error_rtr_;
-  drivers::socketcan::CanId axis_requested_state_;
-  drivers::socketcan::CanId encoder_estimates_;
-  drivers::socketcan::CanId encoder_estimates_rtr_;
-  drivers::socketcan::CanId controller_modes_;
-  drivers::socketcan::CanId input_pos_;
-  drivers::socketcan::CanId input_vel_;
-  drivers::socketcan::CanId input_torque_;
-  drivers::socketcan::CanId iq_;
-  drivers::socketcan::CanId iq_rtr_;
-  drivers::socketcan::CanId reboot_;
-  drivers::socketcan::CanId clear_errors_;
-  drivers::socketcan::CanId controller_error_;
-  drivers::socketcan::CanId controller_error_rtr_;
+  return result;
+}
+
+[[nodiscard]] static drivers::socketcan::CanId CreateCanId(
+  const uint16_t node_id, CommandId command_id, drivers::socketcan::FrameType frame_type,
+  uint16_t bus_time = 0)
+
+{
+  const uint8_t k_command_id_length = 5;
+  return {
+    static_cast<uint32_t>(
+      static_cast<uint16_t>(node_id << k_command_id_length) | static_cast<uint16_t>(command_id)),
+    bus_time, frame_type, drivers::socketcan::StandardFrame};
 };
 
 class CanReadThread
@@ -212,37 +146,71 @@ class CanReadThread
 public:
   CanReadThread(
     const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
-    const std::array<CanID, 2> & can_id, const uint8_t number_of_joints)
-  : motor_axis_(motor_axis), can_id_(can_id), number_of_joints_(number_of_joints)
+    const uint8_t number_of_joints)
+  : motor_axis_(motor_axis), number_of_joints_(number_of_joints)
   {
     receiver_ = drivers::socketcan::SocketCanReceiver(can_interface);
     sender_ = drivers::socketcan::SocketCanSender(can_interface);
     thread_ = std::thread([this]() { this->operator()(); });
   }
-  void operator()(){
+  void operator()()
+  {
     // auto now = rclcpp::Clock().now();
-    // for (uint8_t i = 0; i < number_of_joints_; i++) {
-    //   auto & motor_axis = motor_axis_.get().at(i);
-    //   const auto & can_id = can_id_.get().at(i);
-    // }
+    for (uint8_t i = 0; i < number_of_joints_; i++) {
+      auto & motor_axis = motor_axis_.get().at(i);
+      const auto node_id = motor_axis.GetNodeId();
+      SendRTR(node_id, CommandId::kEncoderEstimates);
+      SendRTR(node_id, CommandId::kIq);
+      SendRTR(node_id, CommandId::kControllerError);
+      SendRTR(node_id, CommandId::kMotorError);
+      SendRTR(node_id, CommandId::kEncoderError);
+    }
   };
 
 private:
   std::reference_wrapper<std::array<MotorAxis, 2>> motor_axis_;
-  std::reference_wrapper<const std::array<CanID, 2>> can_id_;
   uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanReceiver receiver_;
   drivers::socketcan::SocketCanSender sender_;
+
+  void SendRTR(
+    const uint8_t node_id, CommandId command,
+    std::chrono::nanoseconds timeout = std::chrono::milliseconds(0))
+  {
+    sender_.send(
+      std::nullptr_t(), 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::REMOTE),
+      timeout);
+  }
+
+  void Receive();
 };
+
+template <odrive_can_driver::CommandId C>
+void Receive(std::array<std::byte, 8> /*data*/, uint32_t /*length*/, MotorAxis & /*motor_axis*/){};
+template <>
+void Receive<odrive_can_driver::CommandId::kEncoderEstimates>(
+  std::array<std::byte, 8> data, uint32_t length, MotorAxis & motor_axis);
+template <>
+void Receive<odrive_can_driver::CommandId::kIq>(
+  std::array<std::byte, 8> data, uint32_t length, MotorAxis & motor_axis);
+template <>
+void Receive<odrive_can_driver::CommandId::kControllerError>(
+  std::array<std::byte, 8> data, uint32_t length, MotorAxis & motor_axis);
+template <>
+void Receive<odrive_can_driver::CommandId::kMotorError>(
+  std::array<std::byte, 8> data, uint32_t length, MotorAxis & motor_axis);
+template <>
+void Receive<odrive_can_driver::CommandId::kEncoderError>(
+  std::array<std::byte, 8> data, uint32_t length, MotorAxis & motor_axis);
 
 class CanWriteThread
 {
 public:
   CanWriteThread(
     const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
-    const std::array<CanID, 2> & can_id, const uint8_t number_of_joints)
-  : motor_axis_(motor_axis), can_id_(can_id), number_of_joints_(number_of_joints)
+    const uint8_t number_of_joints)
+  : motor_axis_(motor_axis), number_of_joints_(number_of_joints)
   {
     sender_ = drivers::socketcan::SocketCanSender(can_interface);
     thread_ = std::thread([this]() { this->operator()(); });
@@ -252,27 +220,29 @@ public:
     for (uint8_t i = 0; i < number_of_joints_; i++) {
       auto & motor_axis = motor_axis_.get().at(i);
       auto command_id = motor_axis.GetCommandId();
-      const auto & can_id = can_id_.get().at(i);
+      const auto node_id = motor_axis.GetNodeId();
       if (command_id == CommandId::kInputTorque) {
-        Send<CommandId::kInputTorque>(can_id, motor_axis.GetCommandValue());
+        Send(node_id, command_id, motor_axis.GetCommandValue());
       } else {
-        Send<CommandId::kInputPos>(can_id, motor_axis.GetCommandValue(), uint32_t(0));
+        Send(node_id, command_id, motor_axis.GetCommandValue(), uint32_t(0));
       }
     }
   };
 
 private:
   std::reference_wrapper<std::array<MotorAxis, 2>> motor_axis_;
-  std::reference_wrapper<const std::array<CanID, 2>> can_id_;
   uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanSender sender_;
 
-  template <CommandId C, typename... T>
-  void Send(const odrive_can_driver::CanID & can_id, T... data)
+  template <typename... T>
+  void Send(const uint8_t node_id, CommandId command, T... data)
   {
     auto packed_data = PackToLittleEndian(data...);
-    sender_.send(static_cast<void *>(packed_data.data()), packed_data.size(), can_id[C]);
+    sender_.send(
+      static_cast<void *>(packed_data.data()), sizeof(packed_data),
+      CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
+      std::chrono::milliseconds(0));
   }
 };
 
@@ -285,13 +255,10 @@ public:
   {
     number_of_joints_ = number_of_joints;
     can_interface_ = can_interface;
-    can_id_ = {CanID(motor_axis[0].GetNodeId(), 0), CanID(motor_axis[1].GetNodeId(), 0)};
 
     try {
-      receiver_ =
-        std::make_unique<CanReadThread>(can_interface_, motor_axis, can_id_, number_of_joints_);
-      sender_ =
-        std::make_unique<CanWriteThread>(can_interface_, motor_axis, can_id_, number_of_joints_);
+      receiver_ = std::make_unique<CanReadThread>(can_interface_, motor_axis, number_of_joints_);
+      sender_ = std::make_unique<CanWriteThread>(can_interface_, motor_axis, number_of_joints_);
     } catch (const std::exception & e) {
       RCLCPP_FATAL(
         rclcpp::get_logger("odrive_hardware_interface"), "Failed to open CAN interface: %s",
@@ -302,7 +269,6 @@ public:
   };
 
 private:
-  std::array<CanID, 2> can_id_;
   uint8_t number_of_joints_{};
   std::string can_interface_;
   std::thread read_thread_;
