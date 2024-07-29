@@ -120,7 +120,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  return odrive_can_.Init(can_interface_, motor_axis_, number_of_joints_);
+  return can_.Init(can_interface_, motor_axis_, number_of_joints_);
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(
@@ -276,17 +276,7 @@ hardware_interface::return_type OdriveHardwareInterface::write(
 {
   (void)time;
   (void)period;
-
-  for (size_t i = 0; i < number_of_joints_; ++i) {
-    auto & motor_axis = motor_axis_.at(i);
-    if (motor_axis.GetCommandId() != CommandId::kNoCommand) {
-      if (motor_axis.GetTimeoutError()) {
-        // send clear errors command
-      }
-      // send active command
-    }
-  }
-
+  can_.Write(time, period);
   return hardware_interface::return_type::OK;
 }
 }  // namespace odrive_can_driver

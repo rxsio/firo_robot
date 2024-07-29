@@ -13,6 +13,7 @@
 #include <rclcpp/clock.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/time.hpp>
+#include <rclcpp/utilities.hpp>
 #include <ros2_socketcan/socket_can_id.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
@@ -156,17 +157,20 @@ public:
   }
   void operator()()
   {
-    auto deadline = time_ + period_;
-    for (uint8_t i = 0; i < number_of_joints_; i++) {
-      auto & motor_axis = motor_axis_.get().at(i);
-      const auto node_id = motor_axis.GetNodeId();
-      SendRTR(node_id, CommandId::kEncoderEstimates);
-      SendRTR(node_id, CommandId::kIq);
-      // Motor errors are should be set to be sent cyclically
-      // They do not need to be precisely synchronized with the control loop
-      // SendRTR(node_id, CommandId::kControllerError);
-      // SendRTR(node_id, CommandId::kMotorError);
-      // SendRTR(node_id, CommandId::kEncoderError);
+    while (rclcpp::ok()) {
+      auto deadline = GetDeadline();
+      for (uint8_t i = 0; i < number_of_joints_; i++) {
+        auto & motor_axis = motor_axis_.get().at(i);
+        const auto node_id = motor_axis.GetNodeId();
+        SendRTR(node_id, CommandId::kEncoderEstimates, deadline);
+        SendRTR(node_id, CommandId::kIq, deadline);
+        SendRTR(node_id, CommandId::kControllerError, deadline);
+        SendRTR(node_id, CommandId::kMotorError, deadline);
+        SendRTR(node_id, CommandId::kEncoderError, deadline);
+      }
+      while (deadline > rclcpp::Clock().now()) {
+        Receive(deadline);
+      }
     }
   };
 
@@ -178,17 +182,30 @@ private:
   drivers::socketcan::SocketCanSender sender_;
   rclcpp::Time time_{0};
   rclcpp::Duration period_{0, 0};
+  std::mutex timestamp_mutex_;
 
-  void SendRTR(
-    const uint8_t node_id, CommandId command,
-    std::chrono::nanoseconds timeout = std::chrono::milliseconds(0))
+  void SendRTR(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
   {
     sender_.send(
       std::nullptr_t(), 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::REMOTE),
-      timeout);
+      GetTimeout(deadline));
   }
-
-  void Receive(std::chrono::nanoseconds timeout);
+  void Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
+  {
+    std::lock_guard<std::mutex> lock(timestamp_mutex_);
+    time_ = time;
+    period_ = period;
+  }
+  rclcpp::Time GetDeadline()
+  {
+    std::lock_guard<std::mutex> lock(timestamp_mutex_);
+    return time_ + period_;
+  }
+  static std::chrono::nanoseconds GetTimeout(const rclcpp::Time & deadline)
+  {
+    return (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>();
+  }
+  void Receive(const rclcpp::Time & deadline);
 };
 
 template <odrive_can_driver::CommandId C>
@@ -222,32 +239,61 @@ public:
   }
   void operator()()
   {
-    for (uint8_t i = 0; i < number_of_joints_; i++) {
-      auto & motor_axis = motor_axis_.get().at(i);
-      auto command_id = motor_axis.GetCommandId();
-      const auto node_id = motor_axis.GetNodeId();
-      if (command_id == CommandId::kInputTorque) {
-        Send(node_id, command_id, motor_axis.GetCommandValue());
-      } else {
-        Send(node_id, command_id, motor_axis.GetCommandValue(), uint32_t(0));
-      }
+    while (rclcpp::ok()) {
+      std::unique_lock<std::mutex> lock(timestamp_mutex_);
+      wait_for_next_write_.wait(lock);
+      Write(time_ + period_);
     }
   };
+  void Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
+  {
+    std::lock_guard<std::mutex> lock(timestamp_mutex_);
+    time_ = time;
+    period_ = period;
+    wait_for_next_write_.notify_one();
+  }
 
 private:
   std::reference_wrapper<std::array<MotorAxis, 2>> motor_axis_;
   uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanSender sender_;
+  rclcpp::Time time_{0};
+  rclcpp::Duration period_{0, 0};
+  std::mutex timestamp_mutex_;
+  std::condition_variable wait_for_next_write_;
 
   template <typename... T>
-  void Send(const uint8_t node_id, CommandId command, T... data)
+  void Send(
+    const uint8_t node_id, CommandId command, const rclcpp::Time & deadline, const T... data)
   {
     auto packed_data = PackToLittleEndian(data...);
     sender_.send(
       static_cast<void *>(packed_data.data()), sizeof(packed_data),
       CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
-      std::chrono::milliseconds(0));
+      (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>());
+  }
+  void Write(const rclcpp::Time & deadline)
+  {
+    for (uint8_t i = 0; i < number_of_joints_; i++) {
+      auto & motor_axis = motor_axis_.get().at(i);
+      auto command_id = motor_axis.GetCommandId();
+      const auto node_id = motor_axis.GetNodeId();
+      switch (command_id) {
+        case CommandId::kInputTorque: {
+          Send(node_id, command_id, deadline, motor_axis.GetCommandValue());
+          break;
+        }
+        case CommandId::kInputVel:
+        case CommandId::kInputPos: {
+          Send(node_id, command_id, deadline, motor_axis.GetCommandValue(), uint32_t(0));
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+    }
   }
 };
 
@@ -271,6 +317,10 @@ public:
       return hardware_interface::CallbackReturn::ERROR;
     }
     return hardware_interface::CallbackReturn::SUCCESS;
+  };
+  void Write(const rclcpp::Time & time, const rclcpp::Duration & period)
+  {
+    sender_->Notify(time, period);
   };
 
 private:

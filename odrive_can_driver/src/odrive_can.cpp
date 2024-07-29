@@ -1,5 +1,6 @@
 
 #include <odrive_can_driver/odrive_can.hpp>
+#include <rclcpp/time.hpp>
 namespace odrive_can_driver
 {
 
@@ -13,10 +14,11 @@ namespace odrive_can_driver
   return {node_id, command_id};
 }
 
-void CanReadThread::Receive(std::chrono::nanoseconds timeout)
+void CanReadThread::Receive(const rclcpp::Time & deadline)
 {
   std::array<std::byte, 8> data{};
-  auto can_id = receiver_.receive(static_cast<void *>(data.data()), timeout);
+  auto can_id =
+    receiver_.receive(static_cast<void *>(data.data()), CanReadThread::GetTimeout(deadline));
   if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
     return;
   }

@@ -50,7 +50,7 @@ private:
   std::array<MotorAxis, 2> motor_axis_;
   uint8_t number_of_joints_{0};
   std::string can_interface_;
-  Can odrive_can_;
+  Can can_;
 };
 
 }  // namespace odrive_can_driver
