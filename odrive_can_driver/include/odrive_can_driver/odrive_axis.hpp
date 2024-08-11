@@ -11,14 +11,16 @@ enum class CommandId : uint8_t {
   kNoCommand = 0x000,
   kMotorError = 0x003,
   kEncoderError = 0x004,
-  kAxisRequestedState = 0x007,
+  kAxisRequestedState = 0x007,  // 1 - idle, 8 - closed loop control
   kEncoderEstimates = 0x009,
+  /* kControllerModes valid values for
+     Control mode: 1 - Torque, 2 - Velocity, 3 - Position
+     Input mode: 0 - Inactive, 1 - Passthrough, 2 - Velocity Ramp, 5 - Trap Trajectory, 6 - Torque Ramp */
   kControllerModes = 0x00B,
   kInputPos = 0x00C,
   kInputVel = 0x00D,
   kInputTorque = 0x00E,
   kIq = 0x014,
-  kReboot = 0x016,
   kClearErrors = 0x018,
   kControllerError = 0x01D,
 };

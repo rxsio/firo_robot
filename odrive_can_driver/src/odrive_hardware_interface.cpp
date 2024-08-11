@@ -124,44 +124,37 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(
-  const rclcpp_lifecycle::State & previous_state)
+  const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Close SocketCan
-  (void)previous_state;
+  can_.Shutdown();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_shutdown(
-  const rclcpp_lifecycle::State & previous_state)
+  const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Really nothing to do here, power is already disabled in on_deactivate
-  (void)previous_state;
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_activate(
-  const rclcpp_lifecycle::State & previous_state)
+  const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Power motors:
-  // Set torque to 0
-  // Set input mote to torque
-  // Set control mode to closed loop
-  (void)previous_state;
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_deactivate(
-  const rclcpp_lifecycle::State & previous_state)
+  const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // Set control mode to idle
-  (void)previous_state;
+  for (auto & motor_axis : motor_axis_) {
+    motor_axis.SetCommand(CommandId::kNoCommand);
+  }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_error(
-  const rclcpp_lifecycle::State & previous_state)
+  const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  (void)previous_state;
+  // TODO
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -253,10 +246,6 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
         stop_interface.has_value() &&
         InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommandId()) {
         motor_axis.SetCommand(CommandId::kNoCommand);
-        // TODO: disable motor
-        // Set torque to 0
-        // Set input mote to torque
-        // Set control mode to closed loop
       }
     }
   }
@@ -266,16 +255,13 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
 hardware_interface::return_type OdriveHardwareInterface::read(
   const rclcpp::Time & time, const rclcpp::Duration & period)
 {
-  (void)time;
-  (void)period;
+  can_.Read(time, period);
   return hardware_interface::return_type::OK;
 }
 
 hardware_interface::return_type OdriveHardwareInterface::write(
   const rclcpp::Time & time, const rclcpp::Duration & period)
 {
-  (void)time;
-  (void)period;
   can_.Write(time, period);
   return hardware_interface::return_type::OK;
 }

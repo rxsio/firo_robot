@@ -146,6 +146,10 @@ constexpr std::tuple<T...> UnpackFromLittleEndian(
 class CanReadThread
 {
 public:
+  CanReadThread(const CanReadThread &) = delete;
+  CanReadThread(CanReadThread &&) = delete;
+  CanReadThread & operator=(const CanReadThread &) = delete;
+  CanReadThread & operator=(CanReadThread &&) = delete;
   CanReadThread(
     const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
     const uint8_t number_of_joints)
@@ -155,9 +159,16 @@ public:
     sender_ = drivers::socketcan::SocketCanSender(can_interface);
     thread_ = std::thread([this]() { this->operator()(); });
   }
+  ~CanReadThread()
+  {
+    run_.store(false, std::memory_order_relaxed);
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+  }
   void operator()()
   {
-    while (rclcpp::ok()) {
+    while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
       auto deadline = GetDeadline();
       for (uint8_t i = 0; i < number_of_joints_; i++) {
         auto & motor_axis = motor_axis_.get().at(i);
@@ -174,6 +185,13 @@ public:
     }
   };
 
+  void Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
+  {
+    std::lock_guard<std::mutex> lock(timestamp_mutex_);
+    time_ = time;
+    period_ = period;
+  }
+
 private:
   std::reference_wrapper<std::array<MotorAxis, 2>> motor_axis_;
   uint8_t number_of_joints_{};
@@ -183,18 +201,13 @@ private:
   rclcpp::Time time_{0};
   rclcpp::Duration period_{0, 0};
   std::mutex timestamp_mutex_;
+  std::atomic<bool> run_{true};
 
   void SendRTR(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
   {
     sender_.send(
       std::nullptr_t(), 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::REMOTE),
       GetTimeout(deadline));
-  }
-  void Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
-  {
-    std::lock_guard<std::mutex> lock(timestamp_mutex_);
-    time_ = time;
-    period_ = period;
   }
   rclcpp::Time GetDeadline()
   {
@@ -229,6 +242,10 @@ void Receive<odrive_can_driver::CommandId::kEncoderError>(
 class CanWriteThread
 {
 public:
+  CanWriteThread(const CanWriteThread &) = delete;
+  CanWriteThread(CanWriteThread &&) = delete;
+  CanWriteThread & operator=(const CanWriteThread &) = delete;
+  CanWriteThread & operator=(CanWriteThread &&) = delete;
   CanWriteThread(
     const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
     const uint8_t number_of_joints)
@@ -239,10 +256,25 @@ public:
   }
   void operator()()
   {
-    while (rclcpp::ok()) {
+    // TODO: Parametrize init timeout duration
+    auto deadline = rclcpp::Clock().now() + rclcpp::Duration(5, 0);
+    // TODO: Synchronize with read loop so initial errors are either read first
+    // or they are not read at all before initial ClearErrors
+    for (auto & motor_axis : motor_axis_.get()) {
+      auto node_id = motor_axis.GetNodeId();
+      Send(node_id, CommandId::kClearErrors, deadline);
+    }
+    while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
       std::unique_lock<std::mutex> lock(timestamp_mutex_);
       wait_for_next_write_.wait(lock);
       Write(time_ + period_);
+    }
+    // TODO: Parametrize cleanup timeout duration
+    deadline = rclcpp::Clock().now() + rclcpp::Duration(5, 0);
+    for (auto & motor_axis : motor_axis_.get()) {
+      auto node_id = motor_axis.GetNodeId();
+      Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
+      Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(1));
     }
   };
   void Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
@@ -251,6 +283,13 @@ public:
     time_ = time;
     period_ = period;
     wait_for_next_write_.notify_one();
+  }
+  ~CanWriteThread()
+  {
+    run_.store(false, std::memory_order_relaxed);
+    if (thread_.joinable()) {
+      thread_.join();
+    }
   }
 
 private:
@@ -262,6 +301,7 @@ private:
   rclcpp::Duration period_{0, 0};
   std::mutex timestamp_mutex_;
   std::condition_variable wait_for_next_write_;
+  std::atomic<bool> run_{true};
 
   template <typename... T>
   void Send(
@@ -273,6 +313,12 @@ private:
       CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
       (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>());
   }
+  void Send(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
+  {
+    sender_.send(
+      nullptr, 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
+      (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>());
+  }
   void Write(const rclcpp::Time & deadline)
   {
     for (uint8_t i = 0; i < number_of_joints_; i++) {
@@ -282,16 +328,31 @@ private:
       switch (command_id) {
         case CommandId::kInputTorque: {
           Send(node_id, command_id, deadline, motor_axis.GetCommandValue());
+          // TODO: Replace command and input modes with enums
+          Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(6));
+          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
-        case CommandId::kInputVel:
+        case CommandId::kInputVel: {
+          Send(node_id, command_id, deadline, motor_axis.GetCommandValue(), uint32_t(0));
+          Send(node_id, CommandId::kControllerModes, deadline, uint32_t(2), uint32_t(2));
+          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
+          break;
+        }
         case CommandId::kInputPos: {
           Send(node_id, command_id, deadline, motor_axis.GetCommandValue(), uint32_t(0));
+          Send(node_id, CommandId::kControllerModes, deadline, uint32_t(3), uint32_t(1));
+          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
         default: {
+          Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
+          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(1));
           break;
         }
+      }
+      if (motor_axis.GetTimeoutError() && !motor_axis.GetError()) {
+        Send(node_id, CommandId::kClearErrors, deadline);
       }
     }
   }
@@ -318,16 +379,25 @@ public:
     }
     return hardware_interface::CallbackReturn::SUCCESS;
   };
+  hardware_interface::CallbackReturn Shutdown()
+  {
+    receiver_.reset();
+    sender_.reset();
+    return hardware_interface::CallbackReturn::SUCCESS;
+  };
   void Write(const rclcpp::Time & time, const rclcpp::Duration & period)
   {
     sender_->Notify(time, period);
   };
 
+  void Read(const rclcpp::Time & time, const rclcpp::Duration & period)
+  {
+    receiver_->Notify(time, period);
+  };
+
 private:
   uint8_t number_of_joints_{};
   std::string can_interface_;
-  std::thread read_thread_;
-  std::thread write_thread_;
   std::unique_ptr<CanReadThread> receiver_;
   std::unique_ptr<CanWriteThread> sender_;
 };
