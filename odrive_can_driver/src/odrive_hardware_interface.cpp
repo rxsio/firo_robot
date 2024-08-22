@@ -216,7 +216,7 @@ hardware_interface::return_type OdriveHardwareInterface::prepare_command_mode_sw
 
         // 1. Previous interface must be stopped if it's active
         // 2. No interface can be stopped if no interface is active
-        error |= (motor_axis.GetCommandId() != CommandId::kNoCommand) == stop_interface.has_value();
+        error |= (motor_axis.GetCommandId() == CommandId::kNoCommand) == stop_interface.has_value();
 
         // Interface being stopped must be the same as previously active interface
         error |= stop_interface.has_value() &&
