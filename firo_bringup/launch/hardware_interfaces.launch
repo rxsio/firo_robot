@@ -4,5 +4,5 @@
         <param from="$(find-pkg-share firo_control)/config/controllers.yaml"/>
         <remap from="~/robot_description" to="/robot_description"/>
     </node>
-    <!-- <include file="$(find-pkg-share firo_control)/launch/controllers.launch"/> -->
+    <include file="$(find-pkg-share firo_control)/launch/controllers.launch"/>
 </launch>
