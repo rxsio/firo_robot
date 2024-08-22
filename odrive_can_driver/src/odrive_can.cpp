@@ -1,5 +1,7 @@
 
+#include <cstddef>
 #include <odrive_can_driver/odrive_can.hpp>
+#include <rclcpp/duration.hpp>
 #include <rclcpp/time.hpp>
 namespace odrive_can_driver
 {
@@ -33,10 +35,12 @@ void CanReadThread::Receive(const rclcpp::Time & deadline)
   switch (command_id) {
     case CommandId::kEncoderEstimates: {
       odrive_can_driver::Receive<CommandId::kEncoderEstimates>(data, length, motor_axis);
+      last_response_time_ = rclcpp::Clock().now();
       break;
     }
     case CommandId::kIq: {
       odrive_can_driver::Receive<CommandId::kIq>(data, length, motor_axis);
+      last_response_time_ = rclcpp::Clock().now();
       break;
     }
     case CommandId::kControllerError: {

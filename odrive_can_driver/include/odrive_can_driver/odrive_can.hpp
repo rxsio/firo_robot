@@ -11,6 +11,7 @@
 #include <memory>
 #include <odrive_can_driver/odrive_axis.hpp>
 #include <rclcpp/clock.hpp>
+#include <rclcpp/duration.hpp>
 #include <rclcpp/logging.hpp>
 #include <rclcpp/time.hpp>
 #include <rclcpp/utilities.hpp>
@@ -21,6 +22,30 @@
 #include <type_traits>
 namespace odrive_can_driver
 {
+
+template <typename T>
+class SlidingMinMedianMax
+{
+public:
+  explicit SlidingMinMedianMax(std::size_t window_size) : window_(window_size) {}
+  void PushBack(const T & duration)
+  {
+    window_[old_index_] = duration;
+    old_index_ = (old_index_ + 1) % window_.size();
+  }
+  T Max() const { return *std::max_element(window_.begin(), window_.end()); }
+  T Min() const { return *std::min_element(window_.begin(), window_.end()); }
+  T Median() const
+  {
+    auto window = window_;
+    std::nth_element(window.begin(), window.begin() + window.size() / 2, window.end());
+    return window[window.size() / 2];
+  }
+
+private:
+  std::vector<T> window_;
+  std::size_t old_index_ = 0;
+};
 
 // Helper types for selecting unsigned integer type based on the size of the input type
 // UnsignedOfSize should not be used directly, use UnsignedEquivalent instead
@@ -168,6 +193,7 @@ public:
   }
   void operator()()
   {
+    SlidingMinMedianMax<rclcpp::Duration> response_max_delay{10};
     while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
       auto deadline = GetDeadline();
       for (uint8_t i = 0; i < number_of_joints_; i++) {
@@ -200,6 +226,7 @@ private:
   drivers::socketcan::SocketCanSender sender_;
   rclcpp::Time time_{0};
   rclcpp::Duration period_{0, 0};
+  rclcpp::Time last_response_time_{0, 0};
   std::mutex timestamp_mutex_;
   std::atomic<bool> run_{true};
 
