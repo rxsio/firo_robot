@@ -19,6 +19,7 @@
 #include <ros2_socketcan/socket_can_id.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
+#include <stdexcept>
 #include <thread>
 #include <type_traits>
 namespace odrive_can_driver
@@ -246,6 +247,9 @@ private:
     } catch (const std::runtime_error & e) {
       // TODO
       return;
+    } catch (const std::domain_error & e) {
+      // TODO
+      return;
     }
   }
   rclcpp::Time GetDeadline()
@@ -361,6 +365,9 @@ private:
     } catch (const std::runtime_error & e) {
       // TODO
       return;
+    } catch (const std::domain_error & e) {
+      // TODO
+      return;
     }
   }
   void Send(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
@@ -374,6 +381,9 @@ private:
       // TODO
       return;
     } catch (const std::runtime_error & e) {
+      // TODO
+      return;
+    } catch (const std::domain_error & e) {
       // TODO
       return;
     }

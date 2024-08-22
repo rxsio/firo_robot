@@ -33,6 +33,9 @@ void CanReadThread::Receive(const rclcpp::Time & deadline)
   } catch (const std::runtime_error & e) {
     // TODO
     return;
+  } catch (const std::domain_error & e) {
+    // TODO
+    return;
   }
   if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
     return;
