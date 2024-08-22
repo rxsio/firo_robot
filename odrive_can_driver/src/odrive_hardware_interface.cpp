@@ -253,16 +253,16 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
 }
 
 hardware_interface::return_type OdriveHardwareInterface::read(
-  const rclcpp::Time & time, const rclcpp::Duration & period)
+  const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
-  can_.Read(time, period);
+  can_.Read(rclcpp::Clock().now(), period);
   return hardware_interface::return_type::OK;
 }
 
 hardware_interface::return_type OdriveHardwareInterface::write(
-  const rclcpp::Time & time, const rclcpp::Duration & period)
+  const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
-  can_.Write(time, period);
+  can_.Write(rclcpp::Clock().now(), period);
   return hardware_interface::return_type::OK;
 }
 }  // namespace odrive_can_driver
