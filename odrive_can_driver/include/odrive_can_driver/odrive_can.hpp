@@ -4,6 +4,7 @@
 #include <sys/types.h>
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -193,7 +194,7 @@ public:
   }
   void operator()()
   {
-    SlidingMinMedianMax<rclcpp::Duration> response_max_delay{10};
+    // SlidingMinMedianMax<rclcpp::Duration> response_max_delay{10};
     while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
       auto deadline = GetDeadline();
       for (uint8_t i = 0; i < number_of_joints_; i++) {
@@ -229,12 +230,23 @@ private:
   rclcpp::Time last_response_time_{0, 0};
   std::mutex timestamp_mutex_;
   std::atomic<bool> run_{true};
+  const rclcpp::Duration k_min_timeout_{0, 1000000};
 
   void SendRTR(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
   {
-    sender_.send(
-      std::nullptr_t(), 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::REMOTE),
-      GetTimeout(deadline));
+    auto timeout =
+      std::max(k_min_timeout_.to_chrono<std::chrono::nanoseconds>(), GetTimeout(deadline));
+    try {
+      sender_.send(
+        std::nullptr_t(), 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::REMOTE),
+        timeout);
+    } catch (const drivers::socketcan::SocketCanTimeout & e) {
+      // TODO
+      return;
+    } catch (const std::runtime_error & e) {
+      // TODO
+      return;
+    }
   }
   rclcpp::Time GetDeadline()
   {
@@ -329,22 +341,42 @@ private:
   std::mutex timestamp_mutex_;
   std::condition_variable wait_for_next_write_;
   std::atomic<bool> run_{true};
+  const rclcpp::Duration k_min_timeout_{0, 1000000};
 
   template <typename... T>
   void Send(
     const uint8_t node_id, CommandId command, const rclcpp::Time & deadline, const T... data)
   {
     auto packed_data = PackToLittleEndian(data...);
-    sender_.send(
-      static_cast<void *>(packed_data.data()), sizeof(packed_data),
-      CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
-      (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>());
+
+    try {
+      auto timeout = std::max(k_min_timeout_, deadline - rclcpp::Clock().now());
+      sender_.send(
+        static_cast<void *>(packed_data.data()), sizeof(packed_data),
+        CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
+        timeout.to_chrono<std::chrono::nanoseconds>());
+    } catch (const drivers::socketcan::SocketCanTimeout & e) {
+      // TODO
+      return;
+    } catch (const std::runtime_error & e) {
+      // TODO
+      return;
+    }
   }
   void Send(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
   {
-    sender_.send(
-      nullptr, 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
-      (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>());
+    auto timeout = std::max(k_min_timeout_, deadline - rclcpp::Clock().now());
+    try {
+      sender_.send(
+        nullptr, 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
+        timeout.to_chrono<std::chrono::nanoseconds>());
+    } catch (const drivers::socketcan::SocketCanTimeout & e) {
+      // TODO
+      return;
+    } catch (const std::runtime_error & e) {
+      // TODO
+      return;
+    }
   }
   void Write(const rclcpp::Time & deadline)
   {
