@@ -242,6 +242,7 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
 hardware_interface::return_type OdriveHardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
+  can_.Read(rclcpp::Clock().now(), period);
   for (auto & motor_axis : motor_axis_) {
     motor_axis.UpdatePositionState();
     motor_axis.UpdateVelocityState();
@@ -249,7 +250,6 @@ hardware_interface::return_type OdriveHardwareInterface::read(
     // motor_axis.UpdateError();
     // motor_axis.UpdateTimeoutError();
   }
-  can_.Read(rclcpp::Clock().now(), period);
   return hardware_interface::return_type::OK;
 }
 
