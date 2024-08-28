@@ -1,4 +1,3 @@
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <hardware_interface/types/hardware_interface_return_values.hpp>
@@ -66,25 +65,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
   can_interface_ = can_interface_it->second;
 
   number_of_joints_ = info_.joints.size();
-  switch (number_of_joints_) {
-    case 1: {
-      RCLCPP_WARN(
-        rclcpp::get_logger("odrive_hardware_interface"),
-        "Expected 2 joints, got 1. One actuator is left uncontrolled!");
-      break;
-    }
-    case 2: {
-      // Success, continue with initialization
-      break;
-    }
-    default: {
-      RCLCPP_FATAL(
-        rclcpp::get_logger("odrive_hardware_interface"), "Expected 2 joints, got %hhu",
-        number_of_joints_);
-      return hardware_interface::CallbackReturn::ERROR;
-    }
-  }
-
+  motor_axis_.resize(number_of_joints_);
   for (size_t i = 0; i < number_of_joints_; ++i) {
     auto input_node_id_it = hardware_info.joints.at(i).parameters.find("node_id");
     if (input_node_id_it == hardware_info.joints.at(i).parameters.end()) {
@@ -108,12 +89,16 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
         "Node ID can only be in range 0-%d, got %s", kMaxNodeId, input_node_id.c_str());
       return hardware_interface::CallbackReturn::ERROR;
     }
+    // motor_axis_.push_back(MotorAxis());
     motor_axis_.at(i).Init(hardware_info.joints.at(i).name, static_cast<uint8_t>(node_id));
   }
-  if (number_of_joints_ == 2 && motor_axis_[0].GetNodeId() == motor_axis_[1].GetNodeId()) {
-    RCLCPP_FATAL(rclcpp::get_logger("odrive_hardware_interface"), "Node IDs must be different");
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+  // Node IDs must be different
+  // if (std::unique(motor_axis_.begin(), motor_axis_.end(), [](const auto & lhs, const auto & rhs) {
+  //       return lhs.GetNodeId() == rhs.GetNodeId();
+  //     }) != motor_axis_.end()) {
+  //   RCLCPP_FATAL(rclcpp::get_logger("odrive_hardware_interface"), "Node IDs must be different");
+  //   return hardware_interface::CallbackReturn::ERROR;
+  // }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -216,11 +201,11 @@ hardware_interface::return_type OdriveHardwareInterface::prepare_command_mode_sw
 
         // 1. Previous interface must be stopped if it's active
         // 2. No interface can be stopped if no interface is active
-        error |= (motor_axis.GetCommandId() == CommandId::kNoCommand) == stop_interface.has_value();
+        error |= (motor_axis.command_cache == CommandId::kNoCommand) == stop_interface.has_value();
 
         // Interface being stopped must be the same as previously active interface
         error |= stop_interface.has_value() &&
-                 InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommandId();
+                 InterfaceToCommandId(stop_interface.value()) == motor_axis.command_cache;
 
         break;
       }
@@ -239,13 +224,15 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
     auto & motor_axis = motor_axis_.at(i);
     auto start_interface = GetJointInterface(start_interfaces, motor_axis.GetJointName());
     if (start_interface.has_value()) {
-      motor_axis.SetCommand(InterfaceToCommandId(start_interface.value()));
+      motor_axis.command_cache = InterfaceToCommandId(start_interface.value());
+      motor_axis.UpdateCommand();
     } else {
       auto stop_interface = GetJointInterface(stop_interfaces, motor_axis.GetJointName());
       if (
         stop_interface.has_value() &&
-        InterfaceToCommandId(stop_interface.value()) == motor_axis.GetCommandId()) {
-        motor_axis.SetCommand(CommandId::kNoCommand);
+        InterfaceToCommandId(stop_interface.value()) == motor_axis.command_cache) {
+        motor_axis.command_cache = CommandId::kNoCommand;
+        motor_axis.UpdateCommand();
       }
     }
   }
@@ -255,6 +242,13 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
 hardware_interface::return_type OdriveHardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
+  for (auto & motor_axis : motor_axis_) {
+    motor_axis.UpdatePositionState();
+    motor_axis.UpdateVelocityState();
+    motor_axis.UpdateEffortState();
+    // motor_axis.UpdateError();
+    // motor_axis.UpdateTimeoutError();
+  }
   can_.Read(rclcpp::Clock().now(), period);
   return hardware_interface::return_type::OK;
 }
@@ -262,6 +256,11 @@ hardware_interface::return_type OdriveHardwareInterface::read(
 hardware_interface::return_type OdriveHardwareInterface::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
+  for (auto & motor_axis : motor_axis_) {
+    motor_axis.UpdatePositionCommand();
+    motor_axis.UpdateVelocityCommand();
+    motor_axis.UpdateEffortCommand();
+  }
   can_.Write(rclcpp::Clock().now(), period);
   return hardware_interface::return_type::OK;
 }

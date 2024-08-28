@@ -178,12 +178,13 @@ public:
   CanReadThread & operator=(const CanReadThread &) = delete;
   CanReadThread & operator=(CanReadThread &&) = delete;
   CanReadThread(
-    const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
+    const std::string & can_interface, std::vector<MotorAxis> & motor_axis,
     const uint8_t number_of_joints)
-  : motor_axis_(motor_axis), number_of_joints_(number_of_joints)
+  : motor_axis_(motor_axis),
+    number_of_joints_(number_of_joints),
+    receiver_(can_interface),
+    sender_(can_interface)
   {
-    receiver_ = drivers::socketcan::SocketCanReceiver(can_interface);
-    sender_ = drivers::socketcan::SocketCanSender(can_interface);
     thread_ = std::thread([this]() { this->operator()(); });
   }
   ~CanReadThread()
@@ -197,6 +198,9 @@ public:
   {
     // SlidingMinMedianMax<rclcpp::Duration> response_max_delay{10};
     while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
+      std::unique_lock<std::mutex> lock(timestamp_mutex_);
+      wait_for_next_read_.wait(lock);
+      lock.unlock();
       auto deadline = GetDeadline();
       for (uint8_t i = 0; i < number_of_joints_; i++) {
         auto & motor_axis = motor_axis_.get().at(i);
@@ -218,10 +222,11 @@ public:
     std::lock_guard<std::mutex> lock(timestamp_mutex_);
     time_ = time;
     period_ = period;
+    wait_for_next_read_.notify_one();
   }
 
 private:
-  std::reference_wrapper<std::array<MotorAxis, 2>> motor_axis_;
+  std::reference_wrapper<std::vector<MotorAxis>> motor_axis_;
   uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanReceiver receiver_;
@@ -230,6 +235,7 @@ private:
   rclcpp::Duration period_{0, 0};
   rclcpp::Time last_response_time_{0, 0};
   std::mutex timestamp_mutex_;
+  std::condition_variable wait_for_next_read_;
   std::atomic<bool> run_{true};
   const rclcpp::Duration k_min_timeout_{0, 1000000};
 
@@ -290,11 +296,10 @@ public:
   CanWriteThread & operator=(const CanWriteThread &) = delete;
   CanWriteThread & operator=(CanWriteThread &&) = delete;
   CanWriteThread(
-    const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
+    const std::string & can_interface, std::vector<MotorAxis> & motor_axis,
     const uint8_t number_of_joints)
-  : motor_axis_(motor_axis), number_of_joints_(number_of_joints)
+  : motor_axis_(motor_axis), number_of_joints_(number_of_joints), sender_(can_interface)
   {
-    sender_ = drivers::socketcan::SocketCanSender(can_interface);
     thread_ = std::thread([this]() { this->operator()(); });
   }
   void operator()()
@@ -336,7 +341,7 @@ public:
   }
 
 private:
-  std::reference_wrapper<std::array<MotorAxis, 2>> motor_axis_;
+  std::reference_wrapper<std::vector<MotorAxis>> motor_axis_;
   uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanSender sender_;
@@ -348,44 +353,68 @@ private:
   const rclcpp::Duration k_min_timeout_{0, 1000000};
 
   template <typename... T>
-  void Send(
+  bool Send(
     const uint8_t node_id, CommandId command, const rclcpp::Time & deadline, const T... data)
   {
     auto packed_data = PackToLittleEndian(data...);
 
+    auto timeout = std::max(k_min_timeout_, deadline - rclcpp::Clock().now());
+
     try {
-      auto timeout = std::max(k_min_timeout_, deadline - rclcpp::Clock().now());
       sender_.send(
         static_cast<void *>(packed_data.data()), sizeof(packed_data),
         CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
         timeout.to_chrono<std::chrono::nanoseconds>());
+      return true;
     } catch (const drivers::socketcan::SocketCanTimeout & e) {
-      // TODO
-      return;
+      RCLCPP_WARN(
+        rclcpp::get_logger("odrive_hardware_interface"),
+        "Error sending CAN message: %hhu, %hhu, %s", node_id, static_cast<uint8_t>(command),
+        e.what());
+      return false;
     } catch (const std::runtime_error & e) {
-      // TODO
-      return;
+      RCLCPP_WARN(
+        rclcpp::get_logger("odrive_hardware_interface"),
+        "Error sending CAN message: %hhu, %hhu, %s", node_id, static_cast<uint8_t>(command),
+        e.what());
+      return false;
     } catch (const std::domain_error & e) {
-      // TODO
-      return;
+      RCLCPP_WARN(
+        rclcpp::get_logger("odrive_hardware_interface"),
+        "Error sending CAN message: %hhu, %hhu, %s", node_id, static_cast<uint8_t>(command),
+        e.what());
+      return false;
     }
   }
-  void Send(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
+  bool Send(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
   {
     auto timeout = std::max(k_min_timeout_, deadline - rclcpp::Clock().now());
+    // Data pointer has still to be valid, because send implementation uses memcpy underneath
+    // which is UB for nullptr
+    uint8_t data = 0;
     try {
       sender_.send(
-        nullptr, 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
+        (void *)&data, 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::DATA),
         timeout.to_chrono<std::chrono::nanoseconds>());
+      return true;
     } catch (const drivers::socketcan::SocketCanTimeout & e) {
-      // TODO
-      return;
+      RCLCPP_WARN(
+        rclcpp::get_logger("odrive_hardware_interface"),
+        "Error sending CAN message: %hhu, %hhu, %s", node_id, static_cast<uint8_t>(command),
+        e.what());
+      return false;
     } catch (const std::runtime_error & e) {
-      // TODO
-      return;
+      RCLCPP_WARN(
+        rclcpp::get_logger("odrive_hardware_interface"),
+        "Error sending CAN message: %hhu, %hhu, %s", node_id, static_cast<uint8_t>(command),
+        e.what());
+      return false;
     } catch (const std::domain_error & e) {
-      // TODO
-      return;
+      RCLCPP_WARN(
+        rclcpp::get_logger("odrive_hardware_interface"),
+        "Error sending CAN message: %hhu, %hhu, %s", node_id, static_cast<uint8_t>(command),
+        e.what());
+      return false;
     }
   }
   void Write(const rclcpp::Time & deadline)
@@ -396,20 +425,20 @@ private:
       const auto node_id = motor_axis.GetNodeId();
       switch (command_id) {
         case CommandId::kInputTorque: {
-          Send(node_id, command_id, deadline, motor_axis.GetCommandValue());
+          Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()));
           // TODO: Replace command and input modes with enums
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(6));
           Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
         case CommandId::kInputVel: {
-          Send(node_id, command_id, deadline, motor_axis.GetCommandValue(), uint32_t(0));
+          Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()), uint32_t(0));
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(2), uint32_t(2));
           Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
         case CommandId::kInputPos: {
-          Send(node_id, command_id, deadline, motor_axis.GetCommandValue(), uint32_t(0));
+          Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()), uint32_t(0));
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(3), uint32_t(1));
           Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
@@ -431,7 +460,7 @@ class Can
 {
 public:
   hardware_interface::CallbackReturn Init(
-    const std::string & can_interface, std::array<MotorAxis, 2> & motor_axis,
+    const std::string & can_interface, std::vector<MotorAxis> & motor_axis,
     const uint8_t number_of_joints)
   {
     number_of_joints_ = number_of_joints;

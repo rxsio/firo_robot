@@ -5,6 +5,7 @@
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
 #include <limits>
 #include <string>
+#include <utility>
 namespace odrive_can_driver
 {
 enum class CommandId : uint8_t {
@@ -53,6 +54,47 @@ public:
   bool timeout_error_cache{false};
   bool error_cache{false};  // Not counting timeout error
 
+  MotorAxis() = default;
+  explicit MotorAxis(std::string joint_name, const uint8_t node_id)
+  : joint_name_(std::move(joint_name)), node_id_(node_id)
+  {
+  }
+  MotorAxis(MotorAxis &&) = delete;
+  MotorAxis & operator=(MotorAxis &&) = delete;
+  // Define copy constructor and copy assignment operator
+  MotorAxis(const MotorAxis & other)
+  : joint_name_(other.joint_name_),
+    node_id_(other.node_id_),
+    position_state_(other.position_state_.load()),
+    velocity_state_(other.velocity_state_.load()),
+    effort_state_(other.effort_state_.load()),
+    command_(other.command_.load()),
+    position_command_(other.position_command_.load()),
+    velocity_command_(other.velocity_command_.load()),
+    effort_command_(other.effort_command_.load()),
+    timeout_error_(other.timeout_error_.load()),
+    error_(other.error_.load())
+  {
+  }
+  MotorAxis & operator=(const MotorAxis & other)
+  {
+    if (this == &other) {
+      return *this;
+    }
+    joint_name_ = other.joint_name_;
+    node_id_ = other.node_id_;
+    position_state_.store(other.position_state_.load());
+    velocity_state_.store(other.velocity_state_.load());
+    effort_state_.store(other.effort_state_.load());
+    command_.store(other.command_.load());
+    position_command_.store(other.position_command_.load());
+    velocity_command_.store(other.velocity_command_.load());
+    effort_command_.store(other.effort_command_.load());
+    timeout_error_.store(other.timeout_error_.load());
+    error_.store(other.error_.load());
+    return *this;
+  }
+
   void Init(const std::string & joint_name, const uint8_t node_id)
   {
     joint_name_ = joint_name;
@@ -71,18 +113,18 @@ public:
     velocity_state_cache = velocity_state_.load(std::memory_order_relaxed);
   }
   void UpdateEffortState() { effort_state_cache = effort_state_.load(std::memory_order_relaxed); }
-  void UpdateCommand() { command_cache = command_.load(std::memory_order_relaxed); }
+  void UpdateCommand() { command_.store(command_cache, std::memory_order_relaxed); }
   void UpdatePositionCommand()
   {
-    position_command_cache = position_command_.load(std::memory_order_relaxed);
+    position_command_.store(position_command_cache, std::memory_order_relaxed);
   }
   void UpdateVelocityCommand()
   {
-    velocity_command_cache = velocity_command_.load(std::memory_order_relaxed);
+    velocity_command_.store(velocity_command_cache, std::memory_order_relaxed);
   }
   void UpdateEffortCommand()
   {
-    effort_command_cache = effort_command_.load(std::memory_order_relaxed);
+    effort_command_.store(effort_command_cache, std::memory_order_relaxed);
   }
   void UpdateTimeoutError()
   {
@@ -92,24 +134,14 @@ public:
 
   [[nodiscard]] double GetPositionState()
   {
-    UpdatePositionState();
-    return position_state_cache;
+    return position_state_.load(std::memory_order_relaxed);
   }
   [[nodiscard]] double GetVelocityState()
   {
-    UpdateVelocityState();
-    return velocity_state_cache;
+    return velocity_state_.load(std::memory_order_relaxed);
   }
-  [[nodiscard]] double GetEffortState()
-  {
-    UpdateEffortState();
-    return effort_state_cache;
-  }
-  [[nodiscard]] CommandId GetCommandId()
-  {
-    UpdateCommand();
-    return command_cache;
-  }
+  [[nodiscard]] double GetEffortState() { return effort_state_.load(std::memory_order_relaxed); }
+  [[nodiscard]] CommandId GetCommandId() { return command_.load(std::memory_order_relaxed); }
   [[nodiscard]] auto GetCommandValue()
   {
     switch (GetCommandId()) {
@@ -126,29 +158,18 @@ public:
   }
   [[nodiscard]] double GetPositionCommand()
   {
-    UpdatePositionCommand();
-    return position_command_cache;
+    return position_command_.load(std::memory_order_relaxed);
   }
   [[nodiscard]] double GetVelocityCommand()
   {
-    UpdateVelocityCommand();
-    return velocity_command_cache;
+    return velocity_command_.load(std::memory_order_relaxed);
   }
   [[nodiscard]] double GetEffortCommand()
   {
-    UpdateEffortCommand();
-    return effort_command_cache;
+    return effort_command_.load(std::memory_order_relaxed);
   }
-  [[nodiscard]] bool GetTimeoutError()
-  {
-    UpdateTimeoutError();
-    return timeout_error_cache;
-  }
-  [[nodiscard]] bool GetError()
-  {
-    UpdateError();
-    return error_cache;
-  }
+  [[nodiscard]] bool GetTimeoutError() { return timeout_error_.load(std::memory_order_relaxed); }
+  [[nodiscard]] bool GetError() { return error_.load(std::memory_order_relaxed); }
 
   void SetPositionState(double position)
   {

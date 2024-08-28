@@ -2,7 +2,6 @@
 #ifndef __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
 #define __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
 
-#include <array>
 #include <cstdint>
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
@@ -47,7 +46,7 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  std::array<MotorAxis, 2> motor_axis_;
+  std::vector<MotorAxis> motor_axis_;
   uint8_t number_of_joints_{0};
   std::string can_interface_;
   Can can_;
