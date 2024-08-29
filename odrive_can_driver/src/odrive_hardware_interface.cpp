@@ -89,8 +89,46 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
         "Node ID can only be in range 0-%d, got %s", kMaxNodeId, input_node_id.c_str());
       return hardware_interface::CallbackReturn::ERROR;
     }
+    // Get transmission and torque constant
+    double transmission = 1;
+    auto transmission_it = hardware_info.joints.at(i).parameters.find("transmission");
+    if (transmission_it != hardware_info.joints.at(i).parameters.end()) {
+      try {
+        transmission = std::stod(transmission_it->second);
+      } catch (const std::invalid_argument & ia) {
+        RCLCPP_FATAL(
+          rclcpp::get_logger("odrive_hardware_interface"), "Transmission is not a number: %s",
+          transmission_it->second.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      } catch (const std::out_of_range & oor) {
+        RCLCPP_FATAL(
+          rclcpp::get_logger("odrive_hardware_interface"), "Transmission is out of range: %s",
+          transmission_it->second.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+    }
+    double torque_constant = 1;
+    auto torque_constant_it = hardware_info.joints.at(i).parameters.find("torque_constant");
+    if (torque_constant_it != hardware_info.joints.at(i).parameters.end()) {
+      try {
+        torque_constant = std::stod(torque_constant_it->second);
+      } catch (const std::invalid_argument & ia) {
+        RCLCPP_FATAL(
+          rclcpp::get_logger("odrive_hardware_interface"), "Torque constant is not a number: %s",
+          torque_constant_it->second.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      } catch (const std::out_of_range & oor) {
+        RCLCPP_FATAL(
+          rclcpp::get_logger("odrive_hardware_interface"), "Torque constant is out of range: %s",
+          torque_constant_it->second.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+    }
+
     // motor_axis_.push_back(MotorAxis());
-    motor_axis_.at(i).Init(hardware_info.joints.at(i).name, static_cast<uint8_t>(node_id));
+    motor_axis_.at(i).Init(
+      hardware_info.joints.at(i).name, static_cast<uint8_t>(node_id), transmission,
+      torque_constant);
   }
   // Node IDs must be different
   // if (std::unique(motor_axis_.begin(), motor_axis_.end(), [](const auto & lhs, const auto & rhs) {
