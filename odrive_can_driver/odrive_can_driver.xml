@@ -1,0 +1,5 @@
+<library path="odrive_hardware_interface">
+        <class name="odrive_can_driver/OdriveHardwareInterface" type="odrive_can_driver::OdriveHardwareInterface" base_class_type="hardware_interface::ActuatorInterface">
+                <description>Hardware Interface for ODrive 3.6 over CAN bus</description>
+        </class>
+</library>

@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>firo_bringup</name>
+  <version>1.0.0</version>
+  <description>FIRO bringup</description>
+  <maintainer email="gabriel@gabrielb.dev">Gabriel Brzeziński</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>firo_calibration</exec_depend>
+  <exec_depend>firo_control</exec_depend>
+  <exec_depend>firo_description</exec_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

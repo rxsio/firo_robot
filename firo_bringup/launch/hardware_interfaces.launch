@@ -1,0 +1,9 @@
+<launch>
+    <include file="$(find-pkg-share firo_description)/launch/firo_description.launch" />
+    <node pkg="controller_manager" exec="ros2_control_node" output="both">
+        <param from="$(find-pkg-share firo_control)/config/controllers.yaml"/>
+        <remap from="~/robot_description" to="/robot_description"/>
+        <remap from="/wheel_controller/cmd_vel" to="/cmd_vel"/>
+        <remap from="/wheel_controller/odom" to="/wheels/odom"/>
+    </node>
+</launch>
