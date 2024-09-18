@@ -322,7 +322,6 @@ public:
     for (auto & motor_axis : motor_axis_.get()) {
       auto node_id = motor_axis.GetNodeId();
       Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
-      Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(1));
     }
   };
   void Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
@@ -428,24 +427,20 @@ private:
           Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()));
           // TODO: Replace command and input modes with enums
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(6));
-          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
         case CommandId::kInputVel: {
           Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()), uint32_t(0));
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(2), uint32_t(2));
-          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
         case CommandId::kInputPos: {
           Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()), uint32_t(0));
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(3), uint32_t(1));
-          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(8));
           break;
         }
         default: {
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
-          Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(1));
           break;
         }
       }
