@@ -1,4 +1,5 @@
 <launch>
         <include file="$(find-pkg-share firo_bringup)/launch/hardware_interfaces.launch" />
         <include file="$(find-pkg-share firo_control)/launch/controllers.launch"/>
+        <include file="$(find-pkg-share firo_bringup)/launch/web_bridge.launch" />
 </launch>

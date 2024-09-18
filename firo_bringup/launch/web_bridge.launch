@@ -1,0 +1,10 @@
+<launch>
+        <arg name="certificate_path" default="/certificates/firo"/>
+
+        <include file="$(find-pkg-share rosbridge_server)/launch/rosbridge_websocket_launch.xml">
+                <arg name="port" value="8081"/>
+                <arg name="certfile" value="$(var certificate_path).crt"/>
+                <arg name="keyfile" value="$(var certificate_path).key"/>
+                <arg name="ssl" value="true"/>
+        </include>
+</launch>
