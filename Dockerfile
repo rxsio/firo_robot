@@ -34,4 +34,4 @@ RUN apt-get update \
         && echo "source $PWD/install/setup.bash" >> ~/.bashrc
 
 # Set the default entrypoint
-CMD ["/bin/bash"]
+CMD ["/bin/bash", "-c", "source /ros2/install/setup.bash && ros2 launch firo_bringup firo_bringup.launch"]
