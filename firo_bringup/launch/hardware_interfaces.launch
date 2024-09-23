@@ -9,4 +9,7 @@
         <remap from="/in" to="/cmd_vel" />
         <remap from="/out" to="/wheel_controller/cmd_vel" />
     </node>
+    <node name="spherical_camera_capture" pkg="firo_ricoh" exec="image_capture" output="screen">
+        <param name="~output_directory" value="/exchange/spherical_images/" />
+    </node>
 </launch>

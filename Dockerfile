@@ -28,6 +28,7 @@ RUN apt-get update \
         && rosdep update \
         && source /opt/ros/$ROS_DISTRO/setup.bash \
         && rosdep install --from-paths install/**/share --ignore-src -iy --dependency-types=exec \
+        && apt-get install python3-gphoto2 -y \
         && apt-get purge -y python3-rosdep \
         && SUDO_FORCE_REMOVE=yes apt-get autoremove --purge -y \
         && rm -rf /var/lib/apt/lists/* \
