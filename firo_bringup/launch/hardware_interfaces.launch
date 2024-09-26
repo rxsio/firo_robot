@@ -13,6 +13,6 @@
         <param name="output_directory" value="/exchange/spherical_images/" />
     </node>
     <node name="radcon" pkg="radconpy_ros" exec="publisher" output="screen">
-        <param name="port" value="/dev/serial/by-id/usb-DESY_RadCon_Rev.C_DM4E7U0H-if00-port0" />
+        <param name="port" value="/dev/ttyUSB0" />
     </node>
 </launch>
