@@ -10,6 +10,9 @@
         <remap from="/out" to="/wheel_controller/cmd_vel" />
     </node>
     <node name="spherical_camera_capture" pkg="firo_ricoh" exec="image_capture" output="screen">
-        <param name="~output_directory" value="/exchange/spherical_images/" />
+        <param name="output_directory" value="/exchange/spherical_images/" />
+    </node>
+    <node name="radcon" pkg="radconpy_ros" exec="publisher" output="screen">
+        <param name="port" value="/dev/serial/by-id/usb-DESY_RadCon_Rev.C_DM4E7U0H-if00-port0" />
     </node>
 </launch>
