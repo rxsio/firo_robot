@@ -98,8 +98,8 @@ class ThetaRos(Node):
 
     def __init__(self, name):
         super().__init__(name)
-        self.declare_parameter("~output_directory", path.expanduser("~/theta/"))
-        self.output_directory = self.get_parameter("~output_directory").get_parameter_value().string_value
+        self.declare_parameter("output_directory", path.expanduser("~/theta/"))
+        self.output_directory = self.get_parameter("output_directory").get_parameter_value().string_value
         try:
             self.camera = Theta(self.output_directory)
         except gp.GPhoto2Error as e:
