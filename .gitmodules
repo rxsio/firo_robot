@@ -1,0 +1,3 @@
+[submodule "radconpy"]
+	path = radconpy
+	url = https://github.com/rxsio/radconpy.git
