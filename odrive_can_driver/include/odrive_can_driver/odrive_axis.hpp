@@ -41,6 +41,43 @@ constexpr std::array<std::pair<std::string_view, CommandId>, 3> kInterfaceToComm
 CommandId InterfaceToCommandId(const std::string_view & interface);
 bool IsSupportedInterface(const std::string & interface);
 
+// Atomic wrapper for MotorAxis internal use
+// - Not intended for use outside MotorAxis class
+// - Implements only necessary methods and overloads
+// - Non-copyable and non-movable, like atomic<T>
+// - Allows assignment of T values with specified memory ordering for load/store
+// - Default memory ordering is relaxed
+template <typename T, std::memory_order M = std::memory_order_relaxed>
+class AxisAtomicProperty
+{
+public:
+  AxisAtomicProperty() = default;
+  explicit AxisAtomicProperty(T value) : value_(value) {}
+  ~AxisAtomicProperty() = default;
+
+  // Delete copy/move constructors and assignment operators
+  AxisAtomicProperty(const AxisAtomicProperty &) = delete;
+  AxisAtomicProperty & operator=(const AxisAtomicProperty &) = delete;
+  AxisAtomicProperty(AxisAtomicProperty &&) = delete;
+  AxisAtomicProperty & operator=(AxisAtomicProperty &&) = delete;
+
+  // Member functions use small capitals to mimic atomic<T> interface
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  [[nodiscard]] T load(std::memory_order order = M) const { return value_.load(order); }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void store(T value, std::memory_order order = M) { value_.store(value, order); }
+
+  AxisAtomicProperty & operator=(T value)
+  {
+    store(value);
+    return *this;
+  }
+  explicit operator T() const { return load(); }
+
+private:
+  std::atomic<T> value_{};
+};
+
 class MotorAxis
 {
 public:
@@ -56,55 +93,17 @@ public:
   bool timeout_error_cache{false};
   bool error_cache{false};  // Not counting timeout error
 
-  MotorAxis() = default;
-  explicit MotorAxis(
-    std::string joint_name, const uint8_t node_id, const double transmission = 1,
-    const double torque_constant = 1)
-  : joint_name_(std::move(joint_name)),
-    node_id_(node_id),
-    transmission_(transmission),
-    torque_constant_(torque_constant),
-    torque_direction_(transmission_ > 0 ? 1 : -1)
-  {
-  }
-  MotorAxis(MotorAxis &&) = delete;
-  MotorAxis & operator=(MotorAxis &&) = delete;
-  // Define copy constructor and copy assignment operator
-  MotorAxis(const MotorAxis & other)
-  : joint_name_(other.joint_name_),
-    node_id_(other.node_id_),
-    position_state_(other.position_state_.load()),
-    velocity_state_(other.velocity_state_.load()),
-    effort_state_(other.effort_state_.load()),
-    command_(other.command_.load()),
-    position_command_(other.position_command_.load()),
-    velocity_command_(other.velocity_command_.load()),
-    effort_command_(other.effort_command_.load()),
-    timeout_error_(other.timeout_error_.load()),
-    error_(other.error_.load())
-  {
-  }
-  MotorAxis & operator=(const MotorAxis & other)
-  {
-    if (this == &other) {
-      return *this;
-    }
-    joint_name_ = other.joint_name_;
-    node_id_ = other.node_id_;
-    transmission_ = other.transmission_;
-    torque_constant_ = other.torque_constant_;
-    torque_direction_ = other.torque_direction_;
-    position_state_.store(other.position_state_.load());
-    velocity_state_.store(other.velocity_state_.load());
-    effort_state_.store(other.effort_state_.load());
-    command_.store(other.command_.load());
-    position_command_.store(other.position_command_.load());
-    velocity_command_.store(other.velocity_command_.load());
-    effort_command_.store(other.effort_command_.load());
-    timeout_error_.store(other.timeout_error_.load());
-    error_.store(other.error_.load());
-    return *this;
-  }
+  AxisAtomicProperty<double> position_state;
+  AxisAtomicProperty<double> velocity_state;
+  AxisAtomicProperty<double> effort_state;
+
+  AxisAtomicProperty<enum CommandId> command;
+  AxisAtomicProperty<double> position_command;
+  AxisAtomicProperty<double> velocity_command;
+  AxisAtomicProperty<double> effort_command;
+
+  AxisAtomicProperty<bool> timeout_error;
+  AxisAtomicProperty<bool> error;
 
   void Init(
     const std::string & joint_name, const uint8_t node_id, const double transmission = 1,
@@ -123,103 +122,51 @@ public:
   void UpdatePositionState()
   {
     position_state_cache =
-      position_state_.load(std::memory_order_relaxed) * 2 * M_PI / transmission_;
+      position_state.load(std::memory_order_relaxed) * 2 * M_PI / transmission_;
   }
   void UpdateVelocityState()
   {
     velocity_state_cache =
-      velocity_state_.load(std::memory_order_relaxed) * 2 * M_PI / transmission_;
+      velocity_state.load(std::memory_order_relaxed) * 2 * M_PI / transmission_;
   }
   void UpdateEffortState()
   {
     effort_state_cache =
-      effort_state_.load(std::memory_order_relaxed) * torque_constant_ * torque_direction_;
+      effort_state.load(std::memory_order_relaxed) * torque_constant_ * torque_direction_;
   }
-  void UpdateCommand() { command_.store(command_cache, std::memory_order_relaxed); }
+  void UpdateCommand() { command.store(command_cache, std::memory_order_relaxed); }
   void UpdatePositionCommand()
   {
-    position_command_.store(
+    position_command.store(
       position_command_cache * transmission_ / (2 * M_PI), std::memory_order_relaxed);
   }
   void UpdateVelocityCommand()
   {
-    velocity_command_.store(
+    velocity_command.store(
       velocity_command_cache * transmission_ / (2 * M_PI), std::memory_order_relaxed);
   }
   void UpdateEffortCommand()
   {
-    effort_command_.store(
+    effort_command.store(
       effort_command_cache / (torque_constant_ * torque_direction_), std::memory_order_relaxed);
   }
-  void UpdateTimeoutError()
-  {
-    timeout_error_cache = timeout_error_.load(std::memory_order_relaxed);
-  }
-  void UpdateError() { error_cache = error_.load(std::memory_order_relaxed); }
+  void UpdateTimeoutError() { timeout_error_cache = timeout_error.load(std::memory_order_relaxed); }
+  void UpdateError() { error_cache = error.load(std::memory_order_relaxed); }
 
-  [[nodiscard]] double GetPositionState()
+  [[nodiscard]] auto CommandValue() const
   {
-    return position_state_.load(std::memory_order_relaxed);
-  }
-  [[nodiscard]] double GetVelocityState()
-  {
-    return velocity_state_.load(std::memory_order_relaxed);
-  }
-  [[nodiscard]] double GetEffortState() { return effort_state_.load(std::memory_order_relaxed); }
-  [[nodiscard]] CommandId GetCommandId() { return command_.load(std::memory_order_relaxed); }
-  [[nodiscard]] auto GetCommandValue()
-  {
-    switch (GetCommandId()) {
+    switch (command.load()) {
       case CommandId::kInputPos:
-        return GetPositionCommand();
+        return position_command.load();
       case CommandId::kInputVel:
-        return GetVelocityCommand();
+        return velocity_command.load();
       case CommandId::kInputTorque:
-        return GetEffortCommand();
+        return effort_command.load();
       default:
         // This should never occur
         return std::numeric_limits<double>::quiet_NaN();
     }
   }
-  [[nodiscard]] double GetPositionCommand()
-  {
-    return position_command_.load(std::memory_order_relaxed);
-  }
-  [[nodiscard]] double GetVelocityCommand()
-  {
-    return velocity_command_.load(std::memory_order_relaxed);
-  }
-  [[nodiscard]] double GetEffortCommand()
-  {
-    return effort_command_.load(std::memory_order_relaxed);
-  }
-  [[nodiscard]] bool GetTimeoutError() { return timeout_error_.load(std::memory_order_relaxed); }
-  [[nodiscard]] bool GetError() { return error_.load(std::memory_order_relaxed); }
-
-  void SetPositionState(double position)
-  {
-    position_state_.store(position, std::memory_order_relaxed);
-  }
-  void SetVelocityState(double velocity)
-  {
-    velocity_state_.store(velocity, std::memory_order_relaxed);
-  }
-  void SetEffortState(double effort) { effort_state_.store(effort, std::memory_order_relaxed); }
-  void SetCommand(CommandId command) { command_.store(command, std::memory_order_relaxed); }
-  void SetPositionCommand(double position)
-  {
-    position_command_.store(position, std::memory_order_relaxed);
-  }
-  void SetVelocityCommand(double velocity)
-  {
-    velocity_command_.store(velocity, std::memory_order_relaxed);
-  }
-  void SetEffortCommand(double effort) { effort_command_.store(effort, std::memory_order_relaxed); }
-  void SetTimeoutError(bool timeout_error)
-  {
-    timeout_error_.store(timeout_error, std::memory_order_relaxed);
-  }
-  void SetError(bool error) { error_.store(error, std::memory_order_relaxed); }
 
 private:
   std::string joint_name_;
@@ -227,18 +174,6 @@ private:
   double transmission_{};
   double torque_constant_{};
   int8_t torque_direction_{};
-
-  std::atomic<double> position_state_{};
-  std::atomic<double> velocity_state_{};
-  std::atomic<double> effort_state_{};
-
-  std::atomic<CommandId> command_{};
-  std::atomic<double> position_command_{};
-  std::atomic<double> velocity_command_{};
-  std::atomic<double> effort_command_{};
-
-  std::atomic<bool> timeout_error_{};
-  std::atomic<bool> error_{};
 };
 }  // namespace odrive_can_driver
 #endif  // ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
