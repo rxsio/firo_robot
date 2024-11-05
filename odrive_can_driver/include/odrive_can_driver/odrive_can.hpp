@@ -25,30 +25,6 @@
 namespace odrive_can_driver
 {
 
-template <typename T>
-class SlidingMinMedianMax
-{
-public:
-  explicit SlidingMinMedianMax(std::size_t window_size) : window_(window_size) {}
-  void PushBack(const T & duration)
-  {
-    window_[old_index_] = duration;
-    old_index_ = (old_index_ + 1) % window_.size();
-  }
-  T Max() const { return *std::max_element(window_.begin(), window_.end()); }
-  T Min() const { return *std::min_element(window_.begin(), window_.end()); }
-  T Median() const
-  {
-    auto window = window_;
-    std::nth_element(window.begin(), window.begin() + window.size() / 2, window.end());
-    return window[window.size() / 2];
-  }
-
-private:
-  std::vector<T> window_;
-  std::size_t old_index_ = 0;
-};
-
 // Helper types for selecting unsigned integer type based on the size of the input type
 // UnsignedOfSize should not be used directly, use UnsignedEquivalent instead
 template <size_t T>
@@ -196,7 +172,6 @@ public:
   }
   void operator()()
   {
-    // SlidingMinMedianMax<rclcpp::Duration> response_max_delay{10};
     while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
       std::unique_lock<std::mutex> lock(timestamp_mutex_);
       wait_for_next_read_.wait(lock);
