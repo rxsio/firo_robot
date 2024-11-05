@@ -82,8 +82,8 @@ void Receive<odrive_can_driver::CommandId::kEncoderEstimates>(
 {
   if (length == 8) {
     auto [encoder_pos, encoder_vel] = UnpackFromLittleEndian<float, float>(data);
-    motor_axis.SetPositionState(encoder_pos);
-    motor_axis.SetVelocityState(encoder_vel);
+    motor_axis.position_state = encoder_pos;
+    motor_axis.velocity_state = encoder_vel;
   }
 };
 template <>
@@ -92,7 +92,7 @@ void Receive<odrive_can_driver::CommandId::kIq>(
 {
   if (length == 8) {
     auto [iq_setpoint, iq] = UnpackFromLittleEndian<float, float>(data);
-    motor_axis.SetEffortState(iq);
+    motor_axis.effort_state = iq;
   }
 };
 template <>
@@ -100,7 +100,7 @@ void Receive<odrive_can_driver::CommandId::kControllerError>(
   std::array<std::byte, 8> /*data*/, uint32_t length, MotorAxis & motor_axis)
 {
   if (length == 4) {
-    motor_axis.SetError(true);
+    motor_axis.error = true;
   }
 };
 template <>
@@ -108,7 +108,7 @@ void Receive<odrive_can_driver::CommandId::kMotorError>(
   std::array<std::byte, 8> /*data*/, uint32_t length, MotorAxis & motor_axis)
 {
   if (length == 4) {
-    motor_axis.SetError(true);
+    motor_axis.error = true;
   }
 };
 template <>
@@ -116,7 +116,7 @@ void Receive<odrive_can_driver::CommandId::kEncoderError>(
   std::array<std::byte, 8> /*data*/, uint32_t length, MotorAxis & motor_axis)
 {
   if (length == 4) {
-    motor_axis.SetError(true);
+    motor_axis.error = true;
   }
 };
 

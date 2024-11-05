@@ -395,22 +395,22 @@ private:
   {
     for (uint8_t i = 0; i < number_of_joints_; i++) {
       auto & motor_axis = motor_axis_.get().at(i);
-      auto command_id = motor_axis.GetCommandId();
+      auto command_id = motor_axis.command.load();
       const auto node_id = motor_axis.GetNodeId();
       switch (command_id) {
         case CommandId::kInputTorque: {
-          Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()));
+          Send(node_id, command_id, deadline, float(motor_axis.CommandValue()));
           // TODO: Replace command and input modes with enums
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(6));
           break;
         }
         case CommandId::kInputVel: {
-          Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()), uint32_t(0));
+          Send(node_id, command_id, deadline, float(motor_axis.CommandValue()), uint32_t(0));
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(2), uint32_t(2));
           break;
         }
         case CommandId::kInputPos: {
-          Send(node_id, command_id, deadline, float(motor_axis.GetCommandValue()), uint32_t(0));
+          Send(node_id, command_id, deadline, float(motor_axis.CommandValue()), uint32_t(0));
           Send(node_id, CommandId::kControllerModes, deadline, uint32_t(3), uint32_t(1));
           break;
         }
@@ -419,7 +419,7 @@ private:
           break;
         }
       }
-      if (motor_axis.GetTimeoutError() && !motor_axis.GetError()) {
+      if (motor_axis.timeout_error.load() && !motor_axis.error.load()) {
         Send(node_id, CommandId::kClearErrors, deadline);
       }
     }

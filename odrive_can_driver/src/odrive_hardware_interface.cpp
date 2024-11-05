@@ -169,7 +169,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   for (auto & motor_axis : motor_axis_) {
-    motor_axis.SetCommand(CommandId::kNoCommand);
+    motor_axis.command = CommandId::kNoCommand;
   }
   return hardware_interface::CallbackReturn::SUCCESS;
 }
