@@ -5,10 +5,12 @@
 #include <cstdint>
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
+#include <memory>
 #include <odrive_can_driver/odrive_axis.hpp>
 #include <odrive_can_driver/odrive_can.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
+#include <vector>
 
 namespace odrive_can_driver
 {
@@ -46,7 +48,7 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
-  std::vector<MotorAxis> motor_axis_;
+  std::unique_ptr<std::vector<MotorAxis>> motor_axis_;
   uint8_t number_of_joints_{0};
   std::string can_interface_;
   Can can_;
