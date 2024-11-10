@@ -126,9 +126,8 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
       }
     }
 
-    motor_axis_->at(i).Init(
-      hardware_info.joints.at(i).name, static_cast<uint8_t>(node_id), transmission,
-      torque_constant);
+    motor_axis_->at(i).Init(hardware_info.joints.at(i).name, static_cast<uint8_t>(node_id));
+    motor_axis_interface_.emplace_back(motor_axis_->at(i), transmission, torque_constant);
   }
   // Node IDs must be different
   // if (std::unique(motor_axis_.begin(), motor_axis_.end(), [](const auto & lhs, const auto & rhs) {
@@ -168,9 +167,11 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_activate(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_deactivate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  for (auto & motor_axis : *motor_axis_) {
-    motor_axis.command = CommandId::kNoCommand;
+  for (auto & axis_interface : motor_axis_interface_) {
+    axis_interface.command = CommandId::kNoCommand;
+    axis_interface.Write();
   }
+
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -185,16 +186,15 @@ std::vector<hardware_interface::StateInterface> OdriveHardwareInterface::export_
 {
   std::vector<hardware_interface::StateInterface> state_interfaces;
   state_interfaces.reserve(static_cast<size_t>(number_of_joints_ * 3));
-  for (size_t i = 0; i < number_of_joints_; ++i) {
-    auto & motor_axis = motor_axis_->at(i);
+  for (auto & axis_interface : motor_axis_interface_) {
     state_interfaces.emplace_back(
-      motor_axis.GetJointName(), hardware_interface::HW_IF_POSITION,
-      &motor_axis.position_state_cache);
+      axis_interface.JointName(), hardware_interface::HW_IF_POSITION,
+      &axis_interface.position_state);
     state_interfaces.emplace_back(
-      motor_axis.GetJointName(), hardware_interface::HW_IF_VELOCITY,
-      &motor_axis.velocity_state_cache);
+      axis_interface.JointName(), hardware_interface::HW_IF_VELOCITY,
+      &axis_interface.velocity_state);
     state_interfaces.emplace_back(
-      motor_axis.GetJointName(), hardware_interface::HW_IF_EFFORT, &motor_axis.effort_state_cache);
+      axis_interface.JointName(), hardware_interface::HW_IF_EFFORT, &axis_interface.effort_state);
   }
   return state_interfaces;
 }
@@ -203,18 +203,16 @@ std::vector<hardware_interface::CommandInterface>
 OdriveHardwareInterface::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
-  command_interfaces.reserve(number_of_joints_);
-  for (size_t i = 0; i < number_of_joints_; ++i) {
-    auto & motor_axis = motor_axis_->at(i);
+  command_interfaces.reserve(static_cast<size_t>(number_of_joints_ * 3));
+  for (auto & axis_interface : motor_axis_interface_) {
     command_interfaces.emplace_back(
-      motor_axis.GetJointName(), hardware_interface::HW_IF_POSITION,
-      &motor_axis.position_command_cache);
+      axis_interface.JointName(), hardware_interface::HW_IF_POSITION,
+      &axis_interface.position_command);
     command_interfaces.emplace_back(
-      motor_axis.GetJointName(), hardware_interface::HW_IF_VELOCITY,
-      &motor_axis.velocity_command_cache);
+      axis_interface.JointName(), hardware_interface::HW_IF_VELOCITY,
+      &axis_interface.velocity_command);
     command_interfaces.emplace_back(
-      motor_axis.GetJointName(), hardware_interface::HW_IF_EFFORT,
-      &motor_axis.effort_command_cache);
+      axis_interface.JointName(), hardware_interface::HW_IF_EFFORT, &axis_interface.effort_command);
   }
   return command_interfaces;
 }
@@ -224,26 +222,26 @@ hardware_interface::return_type OdriveHardwareInterface::prepare_command_mode_sw
   const std::vector<std::string> & stop_interfaces)
 {
   bool error = false;
-  for (size_t i = 0; i < number_of_joints_; ++i) {
-    auto & motor_axis = motor_axis_->at(i);
-    switch (NumberOfInterfaces(start_interfaces, motor_axis.GetJointName())) {
+  for (auto & axis_interface : motor_axis_interface_) {
+    const auto joint_name = axis_interface.JointName();
+    switch (NumberOfInterfaces(start_interfaces, joint_name)) {
       case 0: {
         break;
       }
       case 1: {
-        const auto start_interface = GetJointInterface(start_interfaces, motor_axis.GetJointName());
-        const auto stop_interface = GetJointInterface(stop_interfaces, motor_axis.GetJointName());
+        const auto start_interface = GetJointInterface(start_interfaces, joint_name);
+        const auto stop_interface = GetJointInterface(stop_interfaces, joint_name);
 
         // Provided interface must be valid
         error |= !IsSupportedInterface(start_interface.value());
 
         // 1. Previous interface must be stopped if it's active
         // 2. No interface can be stopped if no interface is active
-        error |= (motor_axis.command_cache == CommandId::kNoCommand) == stop_interface.has_value();
+        error |= (axis_interface.command == CommandId::kNoCommand) == stop_interface.has_value();
 
         // Interface being stopped must be the same as previously active interface
         error |= stop_interface.has_value() &&
-                 InterfaceToCommandId(stop_interface.value()) == motor_axis.command_cache;
+                 InterfaceToCommandId(stop_interface.value()) == axis_interface.command;
 
         break;
       }
@@ -258,19 +256,18 @@ hardware_interface::return_type OdriveHardwareInterface::perform_command_mode_sw
   const std::vector<std::string> & start_interfaces,
   const std::vector<std::string> & stop_interfaces)
 {
-  for (size_t i = 0; i < number_of_joints_; ++i) {
-    auto & motor_axis = motor_axis_->at(i);
-    auto start_interface = GetJointInterface(start_interfaces, motor_axis.GetJointName());
+  for (auto & axis_interface : motor_axis_interface_) {
+    auto start_interface = GetJointInterface(start_interfaces, axis_interface.JointName());
     if (start_interface.has_value()) {
-      motor_axis.command_cache = InterfaceToCommandId(start_interface.value());
-      motor_axis.UpdateCommand();
+      axis_interface.command = InterfaceToCommandId(start_interface.value());
+      axis_interface.Write();
     } else {
-      auto stop_interface = GetJointInterface(stop_interfaces, motor_axis.GetJointName());
+      auto stop_interface = GetJointInterface(stop_interfaces, axis_interface.JointName());
       if (
         stop_interface.has_value() &&
-        InterfaceToCommandId(stop_interface.value()) == motor_axis.command_cache) {
-        motor_axis.command_cache = CommandId::kNoCommand;
-        motor_axis.UpdateCommand();
+        InterfaceToCommandId(stop_interface.value()) == axis_interface.command) {
+        axis_interface.command = CommandId::kNoCommand;
+        axis_interface.Write();
       }
     }
   }
@@ -281,12 +278,8 @@ hardware_interface::return_type OdriveHardwareInterface::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
   can_.Read(rclcpp::Clock().now(), period);
-  for (auto & motor_axis : *motor_axis_) {
-    motor_axis.UpdatePositionState();
-    motor_axis.UpdateVelocityState();
-    motor_axis.UpdateEffortState();
-    // motor_axis.UpdateError();
-    // motor_axis.UpdateTimeoutError();
+  for (auto & axis_interface : motor_axis_interface_) {
+    axis_interface.Read();
   }
   return hardware_interface::return_type::OK;
 }
@@ -294,10 +287,8 @@ hardware_interface::return_type OdriveHardwareInterface::read(
 hardware_interface::return_type OdriveHardwareInterface::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
 {
-  for (auto & motor_axis : *motor_axis_) {
-    motor_axis.UpdatePositionCommand();
-    motor_axis.UpdateVelocityCommand();
-    motor_axis.UpdateEffortCommand();
+  for (auto & axis_interface : motor_axis_interface_) {
+    axis_interface.Write();
   }
   can_.Write(rclcpp::Clock().now(), period);
   return hardware_interface::return_type::OK;

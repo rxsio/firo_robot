@@ -14,7 +14,8 @@ enum class CommandId : uint8_t {
   kNoCommand = 0x000,
   kMotorError = 0x003,
   kEncoderError = 0x004,
-  kAxisRequestedState = 0x007,  // 1 - idle, 8 - closed loop control
+  kAxisRequestedState =
+    0x007,  // 1 - idle, 2 - startup sequence, 3 - full calibration, 6 - encoder index search, 8 - closed loop control
   kEncoderEstimates = 0x009,
   /* kControllerModes valid values for
      Control mode: 1 - Torque, 2 - Velocity, 3 - Position
@@ -81,18 +82,6 @@ private:
 class MotorAxis
 {
 public:
-  double position_state_cache{};
-  double velocity_state_cache{};
-  double effort_state_cache{};
-
-  CommandId command_cache{CommandId::kNoCommand};
-  double position_command_cache{};
-  double velocity_command_cache{};
-  double effort_command_cache{};
-
-  bool timeout_error_cache{false};
-  bool error_cache{false};  // Not counting timeout error
-
   AxisAtomicProperty<double> position_state;
   AxisAtomicProperty<double> velocity_state;
   AxisAtomicProperty<double> effort_state;
@@ -105,75 +94,56 @@ public:
   AxisAtomicProperty<bool> timeout_error;
   AxisAtomicProperty<bool> error;
 
-  void Init(
-    const std::string & joint_name, const uint8_t node_id, const double transmission = 1,
-    const double torque_constant = 1)
+  void Init(const std::string & joint_name, const uint8_t node_id)
   {
     joint_name_ = joint_name;
     node_id_ = node_id;
-    transmission_ = transmission;
-    torque_constant_ = torque_constant;
-    torque_direction_ = transmission_ > 0 ? 1 : -1;
   }
 
-  [[nodiscard]] auto GetJointName() const { return joint_name_; }
-  [[nodiscard]] auto GetNodeId() const { return node_id_; }
-
-  void UpdatePositionState()
-  {
-    position_state_cache =
-      position_state.load(std::memory_order_relaxed) * 2 * M_PI / transmission_;
-  }
-  void UpdateVelocityState()
-  {
-    velocity_state_cache =
-      velocity_state.load(std::memory_order_relaxed) * 2 * M_PI / transmission_;
-  }
-  void UpdateEffortState()
-  {
-    effort_state_cache =
-      effort_state.load(std::memory_order_relaxed) * torque_constant_ * torque_direction_;
-  }
-  void UpdateCommand() { command.store(command_cache, std::memory_order_relaxed); }
-  void UpdatePositionCommand()
-  {
-    position_command.store(
-      position_command_cache * transmission_ / (2 * M_PI), std::memory_order_relaxed);
-  }
-  void UpdateVelocityCommand()
-  {
-    velocity_command.store(
-      velocity_command_cache * transmission_ / (2 * M_PI), std::memory_order_relaxed);
-  }
-  void UpdateEffortCommand()
-  {
-    effort_command.store(
-      effort_command_cache / (torque_constant_ * torque_direction_), std::memory_order_relaxed);
-  }
-  void UpdateTimeoutError() { timeout_error_cache = timeout_error.load(std::memory_order_relaxed); }
-  void UpdateError() { error_cache = error.load(std::memory_order_relaxed); }
-
-  [[nodiscard]] auto CommandValue() const
-  {
-    switch (command.load()) {
-      case CommandId::kInputPos:
-        return position_command.load();
-      case CommandId::kInputVel:
-        return velocity_command.load();
-      case CommandId::kInputTorque:
-        return effort_command.load();
-      default:
-        // This should never occur
-        return std::numeric_limits<double>::quiet_NaN();
-    }
-  }
+  [[nodiscard]] auto JointName() const { return joint_name_; }
+  [[nodiscard]] auto NodeId() const { return node_id_; }
+  [[nodiscard]] double CommandValue() const;
 
 private:
   std::string joint_name_;
   uint8_t node_id_{};
-  double transmission_{};
-  double torque_constant_{};
-  int8_t torque_direction_{};
 };
+
+class MotorAxisInterface
+{
+public:
+  double position_state{};
+  double velocity_state{};
+  double effort_state{};
+
+  CommandId command{CommandId::kNoCommand};
+  double position_command{};
+  double velocity_command{};
+  double effort_command{};
+
+  bool timeout_error{false};
+  bool error{false};  // Not counting timeout error
+
+  explicit MotorAxisInterface(
+    MotorAxis & motor_axis, const double transmission = 1, const double torque_constant = 1)
+  : motor_axis_(&motor_axis),
+    torque_factor_(torque_constant * (transmission < 0 ? -1 : 1)),
+    position_factor_(2 * M_PI / transmission)
+  {
+  }
+
+  void Read();
+
+  void Write();
+
+  [[nodiscard]] auto JointName() const { return motor_axis_->JointName(); }
+  [[nodiscard]] auto NodeId() const { return motor_axis_->NodeId(); }
+
+private:
+  MotorAxis * motor_axis_{};
+  double torque_factor_{};
+  double position_factor_{};
+};
+
 }  // namespace odrive_can_driver
 #endif  // ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
