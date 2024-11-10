@@ -43,8 +43,8 @@ void CanReadThread::Receive(const rclcpp::Time & deadline)
   auto [node_id, command_id] = ParseCanId(can_id);
   auto & motor_axis_1 = motor_axis_.get()[0];
   auto & motor_axis_2 = motor_axis_.get()[1];
-  auto & motor_axis = motor_axis_1.GetNodeId() == node_id ? motor_axis_1 : motor_axis_2;
-  if (motor_axis.GetNodeId() != node_id) {
+  auto & motor_axis = motor_axis_1.NodeId() == node_id ? motor_axis_1 : motor_axis_2;
+  if (motor_axis.NodeId() != node_id) {
     return;
   }
   auto length = can_id.length();

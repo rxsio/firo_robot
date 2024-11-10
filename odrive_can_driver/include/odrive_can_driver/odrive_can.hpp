@@ -179,7 +179,7 @@ public:
       auto deadline = GetDeadline();
       for (uint8_t i = 0; i < number_of_joints_; i++) {
         auto & motor_axis = motor_axis_.get().at(i);
-        const auto node_id = motor_axis.GetNodeId();
+        const auto node_id = motor_axis.NodeId();
         SendRTR(node_id, CommandId::kEncoderEstimates, deadline);
         SendRTR(node_id, CommandId::kIq, deadline);
         SendRTR(node_id, CommandId::kControllerError, deadline);
@@ -284,7 +284,7 @@ public:
     // TODO: Synchronize with read loop so initial errors are either read first
     // or they are not read at all before initial ClearErrors
     for (auto & motor_axis : motor_axis_.get()) {
-      auto node_id = motor_axis.GetNodeId();
+      auto node_id = motor_axis.NodeId();
       Send(node_id, CommandId::kClearErrors, deadline);
     }
     while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
@@ -295,7 +295,7 @@ public:
     // TODO: Parametrize cleanup timeout duration
     deadline = rclcpp::Clock().now() + rclcpp::Duration(5, 0);
     for (auto & motor_axis : motor_axis_.get()) {
-      auto node_id = motor_axis.GetNodeId();
+      auto node_id = motor_axis.NodeId();
       Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
     }
   };
@@ -396,7 +396,7 @@ private:
     for (uint8_t i = 0; i < number_of_joints_; i++) {
       auto & motor_axis = motor_axis_.get().at(i);
       auto command_id = motor_axis.command.load();
-      const auto node_id = motor_axis.GetNodeId();
+      const auto node_id = motor_axis.NodeId();
       switch (command_id) {
         case CommandId::kInputTorque: {
           Send(node_id, command_id, deadline, float(motor_axis.CommandValue()));
