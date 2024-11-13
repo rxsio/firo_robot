@@ -50,7 +50,6 @@ public:
 private:
   std::unique_ptr<std::vector<MotorAxis>> motor_axis_;
   std::vector<MotorAxisInterface> motor_axis_interface_;
-  uint8_t number_of_joints_{0};
   std::string can_interface_;
   Can can_;
 };

@@ -64,10 +64,9 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
   }
   can_interface_ = can_interface_it->second;
 
-  number_of_joints_ = info_.joints.size();
-  motor_axis_ = std::make_unique<std::vector<MotorAxis>>(number_of_joints_);
+  motor_axis_ = std::make_unique<std::vector<MotorAxis>>(info_.joints.size());
 
-  for (size_t i = 0; i < number_of_joints_; ++i) {
+  for (size_t i = 0; i < info_.joints.size(); ++i) {
     auto input_node_id_it = hardware_info.joints.at(i).parameters.find("node_id");
     if (input_node_id_it == hardware_info.joints.at(i).parameters.end()) {
       RCLCPP_FATAL(
@@ -142,7 +141,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  return can_.Init(can_interface_, *motor_axis_, number_of_joints_);
+  return can_.Init(can_interface_, *motor_axis_);
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(
@@ -185,7 +184,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_error(
 std::vector<hardware_interface::StateInterface> OdriveHardwareInterface::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> state_interfaces;
-  state_interfaces.reserve(static_cast<size_t>(number_of_joints_ * 3));
+  state_interfaces.reserve(static_cast<size_t>(motor_axis_interface_.size() * 3));
   for (auto & axis_interface : motor_axis_interface_) {
     state_interfaces.emplace_back(
       axis_interface.JointName(), hardware_interface::HW_IF_POSITION,
@@ -203,7 +202,7 @@ std::vector<hardware_interface::CommandInterface>
 OdriveHardwareInterface::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
-  command_interfaces.reserve(static_cast<size_t>(number_of_joints_ * 3));
+  command_interfaces.reserve(static_cast<size_t>(motor_axis_interface_.size() * 3));
   for (auto & axis_interface : motor_axis_interface_) {
     command_interfaces.emplace_back(
       axis_interface.JointName(), hardware_interface::HW_IF_POSITION,
