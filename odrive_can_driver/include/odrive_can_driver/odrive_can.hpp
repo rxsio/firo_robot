@@ -156,7 +156,9 @@ public:
   CanReadThread(const std::string & can_interface, std::vector<MotorAxis> & motor_axis)
   : motor_axis_(motor_axis), receiver_(can_interface), sender_(can_interface)
   {
-    thread_ = std::thread([this]() { this->operator()(); });
+    // We can't pass this object directly, because it's not copyable
+    // (drivers::socketcan::SocketCanReceiver and other data members are not copyable)
+    thread_ = std::thread(std::ref(*this));
   }
   ~CanReadThread()
   {
@@ -266,7 +268,9 @@ public:
   CanWriteThread(const std::string & can_interface, std::vector<MotorAxis> & motor_axis)
   : motor_axis_(motor_axis), sender_(can_interface)
   {
-    thread_ = std::thread([this]() { this->operator()(); });
+    // We can't pass this object directly, because it's not copyable
+    // (drivers::socketcan::SocketCanReceiver and other data members are not copyable)
+    thread_ = std::thread(std::ref(*this));
   }
   void operator()()
   {
