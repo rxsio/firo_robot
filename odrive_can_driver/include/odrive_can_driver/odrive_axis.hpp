@@ -1,5 +1,5 @@
-#ifndef ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
-#define ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
+#ifndef ODRIVE_CAN_DRIVER_ODRIVE_AXIS_H_
+#define ODRIVE_CAN_DRIVER_ODRIVE_AXIS_H_
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -145,4 +145,4 @@ private:
 };
 
 }  // namespace odrive_can_driver
-#endif  // ODRIVE_CAN_DRIVER_ODRIVE_AXIS_HPP
+#endif /* ODRIVE_CAN_DRIVER_ODRIVE_AXIS_H_ */

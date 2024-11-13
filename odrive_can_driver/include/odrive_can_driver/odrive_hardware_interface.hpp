@@ -1,12 +1,12 @@
 
-#ifndef __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
-#define __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
+#ifndef ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H_
+#define ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H_
 
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
 #include <memory>
+#include <odrive_can_driver/can/can.hpp>
 #include <odrive_can_driver/odrive_axis.hpp>
-#include <odrive_can_driver/odrive_can.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
 #include <vector>
@@ -54,4 +54,4 @@ private:
 
 }  // namespace odrive_can_driver
 
-#endif  // __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
+#endif /* ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H_ */

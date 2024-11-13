@@ -12,7 +12,13 @@ find_package(pluginlib REQUIRED)
 find_package(rclcpp_lifecycle REQUIRED)
 find_package(ros2_socketcan REQUIRED)
 
-add_library(odrive_hardware_interface SHARED src/odrive_hardware_interface.cpp src/odrive_axis.cpp src/odrive_can.cpp)
+add_library(
+  odrive_hardware_interface SHARED
+  src/odrive_hardware_interface.cpp
+  src/odrive_axis.cpp
+  src/can/can_write_thread.cpp
+  src/can/can_read_thread.cpp
+  src/can/can.cpp)
 
 target_include_directories(odrive_hardware_interface PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 

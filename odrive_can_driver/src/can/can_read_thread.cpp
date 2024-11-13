@@ -1,6 +1,6 @@
 
 #include <cstddef>
-#include <odrive_can_driver/odrive_can.hpp>
+#include <odrive_can_driver/can/can_read_thread.hpp>
 #include <rclcpp/duration.hpp>
 #include <rclcpp/time.hpp>
 #include <ros2_socketcan/socket_can_id.hpp>
@@ -75,6 +75,63 @@ void CanReadThread::Receive(const rclcpp::Time & deadline)
       break;
   }
 };
+
+CanReadThread::~CanReadThread()
+{
+  run_.store(false, std::memory_order_relaxed);
+  if (thread_.joinable()) {
+    thread_.join();
+  }
+}
+
+void CanReadThread::operator()()
+{
+  while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
+    std::unique_lock<std::mutex> lock(timestamp_mutex_);
+    wait_for_next_read_.wait(lock);
+    lock.unlock();
+    auto deadline = GetDeadline();
+    for (auto & motor_axis : motor_axis_.get()) {
+      const auto node_id = motor_axis.NodeId();
+      SendRTR(node_id, CommandId::kEncoderEstimates, deadline);
+      SendRTR(node_id, CommandId::kIq, deadline);
+      SendRTR(node_id, CommandId::kControllerError, deadline);
+      SendRTR(node_id, CommandId::kMotorError, deadline);
+      SendRTR(node_id, CommandId::kEncoderError, deadline);
+    }
+    while (deadline > rclcpp::Clock().now()) {
+      Receive(deadline);
+    }
+  }
+}
+
+void CanReadThread::Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
+{
+  std::lock_guard<std::mutex> lock(timestamp_mutex_);
+  time_ = time;
+  period_ = period;
+  wait_for_next_read_.notify_one();
+}
+
+void CanReadThread::SendRTR(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
+{
+  auto timeout =
+    std::max(k_min_timeout_.to_chrono<std::chrono::nanoseconds>(), GetTimeout(deadline));
+  try {
+    sender_.send(
+      std::nullptr_t(), 0, CreateCanId(node_id, command, drivers::socketcan::FrameType::REMOTE),
+      timeout);
+  } catch (const drivers::socketcan::SocketCanTimeout & e) {
+    // TODO
+    return;
+  } catch (const std::runtime_error & e) {
+    // TODO
+    return;
+  } catch (const std::domain_error & e) {
+    // TODO
+    return;
+  }
+}
 
 template <>
 void Receive<odrive_can_driver::CommandId::kEncoderEstimates>(
