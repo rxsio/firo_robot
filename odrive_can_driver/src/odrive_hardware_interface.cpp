@@ -62,7 +62,6 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
     RCLCPP_FATAL(rclcpp::get_logger("odrive_hardware_interface"), "No CAN interface specified");
     return hardware_interface::CallbackReturn::ERROR;
   }
-  can_interface_ = can_interface_it->second;
 
   motor_axis_ = std::make_unique<std::vector<MotorAxis>>(info_.joints.size());
 
@@ -141,7 +140,8 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_init(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  return can_.Init(can_interface_, *motor_axis_);
+  auto can_interface = info_.hardware_parameters.find("interface")->second;
+  return can_.Init(can_interface, *motor_axis_);
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(

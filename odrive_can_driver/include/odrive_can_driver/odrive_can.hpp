@@ -421,11 +421,9 @@ public:
   hardware_interface::CallbackReturn Init(
     const std::string & can_interface, std::vector<MotorAxis> & motor_axis)
   {
-    can_interface_ = can_interface;
-
     try {
-      receiver_ = std::make_unique<CanReadThread>(can_interface_, motor_axis);
-      sender_ = std::make_unique<CanWriteThread>(can_interface_, motor_axis);
+      receiver_ = std::make_unique<CanReadThread>(can_interface, motor_axis);
+      sender_ = std::make_unique<CanWriteThread>(can_interface, motor_axis);
     } catch (const std::exception & e) {
       RCLCPP_FATAL(
         rclcpp::get_logger("odrive_hardware_interface"), "Failed to open CAN interface: %s",
@@ -451,7 +449,6 @@ public:
   };
 
 private:
-  std::string can_interface_;
   std::unique_ptr<CanReadThread> receiver_;
   std::unique_ptr<CanWriteThread> sender_;
 };
