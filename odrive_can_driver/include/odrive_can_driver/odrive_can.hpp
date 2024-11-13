@@ -153,13 +153,8 @@ public:
   CanReadThread(CanReadThread &&) = delete;
   CanReadThread & operator=(const CanReadThread &) = delete;
   CanReadThread & operator=(CanReadThread &&) = delete;
-  CanReadThread(
-    const std::string & can_interface, std::vector<MotorAxis> & motor_axis,
-    const uint8_t number_of_joints)
-  : motor_axis_(motor_axis),
-    number_of_joints_(number_of_joints),
-    receiver_(can_interface),
-    sender_(can_interface)
+  CanReadThread(const std::string & can_interface, std::vector<MotorAxis> & motor_axis)
+  : motor_axis_(motor_axis), receiver_(can_interface), sender_(can_interface)
   {
     thread_ = std::thread([this]() { this->operator()(); });
   }
@@ -177,8 +172,7 @@ public:
       wait_for_next_read_.wait(lock);
       lock.unlock();
       auto deadline = GetDeadline();
-      for (uint8_t i = 0; i < number_of_joints_; i++) {
-        auto & motor_axis = motor_axis_.get().at(i);
+      for (auto & motor_axis : motor_axis_.get()) {
         const auto node_id = motor_axis.NodeId();
         SendRTR(node_id, CommandId::kEncoderEstimates, deadline);
         SendRTR(node_id, CommandId::kIq, deadline);
@@ -202,7 +196,6 @@ public:
 
 private:
   std::reference_wrapper<std::vector<MotorAxis>> motor_axis_;
-  uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanReceiver receiver_;
   drivers::socketcan::SocketCanSender sender_;
@@ -270,10 +263,8 @@ public:
   CanWriteThread(CanWriteThread &&) = delete;
   CanWriteThread & operator=(const CanWriteThread &) = delete;
   CanWriteThread & operator=(CanWriteThread &&) = delete;
-  CanWriteThread(
-    const std::string & can_interface, std::vector<MotorAxis> & motor_axis,
-    const uint8_t number_of_joints)
-  : motor_axis_(motor_axis), number_of_joints_(number_of_joints), sender_(can_interface)
+  CanWriteThread(const std::string & can_interface, std::vector<MotorAxis> & motor_axis)
+  : motor_axis_(motor_axis), sender_(can_interface)
   {
     thread_ = std::thread([this]() { this->operator()(); });
   }
@@ -316,7 +307,6 @@ public:
 
 private:
   std::reference_wrapper<std::vector<MotorAxis>> motor_axis_;
-  uint8_t number_of_joints_{};
   std::thread thread_;
   drivers::socketcan::SocketCanSender sender_;
   rclcpp::Time time_{0};
@@ -393,8 +383,7 @@ private:
   }
   void Write(const rclcpp::Time & deadline)
   {
-    for (uint8_t i = 0; i < number_of_joints_; i++) {
-      auto & motor_axis = motor_axis_.get().at(i);
+    for (auto & motor_axis : motor_axis_.get()) {
       auto command_id = motor_axis.command.load();
       const auto node_id = motor_axis.NodeId();
       switch (command_id) {
@@ -430,15 +419,13 @@ class Can
 {
 public:
   hardware_interface::CallbackReturn Init(
-    const std::string & can_interface, std::vector<MotorAxis> & motor_axis,
-    const uint8_t number_of_joints)
+    const std::string & can_interface, std::vector<MotorAxis> & motor_axis)
   {
-    number_of_joints_ = number_of_joints;
     can_interface_ = can_interface;
 
     try {
-      receiver_ = std::make_unique<CanReadThread>(can_interface_, motor_axis, number_of_joints_);
-      sender_ = std::make_unique<CanWriteThread>(can_interface_, motor_axis, number_of_joints_);
+      receiver_ = std::make_unique<CanReadThread>(can_interface_, motor_axis);
+      sender_ = std::make_unique<CanWriteThread>(can_interface_, motor_axis);
     } catch (const std::exception & e) {
       RCLCPP_FATAL(
         rclcpp::get_logger("odrive_hardware_interface"), "Failed to open CAN interface: %s",
@@ -464,7 +451,6 @@ public:
   };
 
 private:
-  uint8_t number_of_joints_{};
   std::string can_interface_;
   std::unique_ptr<CanReadThread> receiver_;
   std::unique_ptr<CanWriteThread> sender_;
