@@ -2,7 +2,6 @@
 #ifndef __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
 #define __ODRIVE_CAN_DRIVER_ODRIVE_HARDWARE_INTERFACE_H__
 
-#include <cstdint>
 #include <hardware_interface/actuator_interface.hpp>
 #include <hardware_interface/sensor.hpp>
 #include <memory>

@@ -1,5 +1,6 @@
 
 #include <algorithm>
+#include <limits>
 #include <odrive_can_driver/odrive_axis.hpp>
 namespace odrive_can_driver
 {
