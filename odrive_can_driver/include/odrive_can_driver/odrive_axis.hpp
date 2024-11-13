@@ -5,7 +5,6 @@
 #include <cmath>
 #include <cstdint>
 #include <hardware_interface/types/hardware_interface_type_values.hpp>
-#include <limits>
 #include <string>
 #include <utility>
 namespace odrive_can_driver
