@@ -141,5 +141,15 @@ constexpr std::tuple<T...> UnpackFromLittleEndian(
     bus_time, frame_type, drivers::socketcan::StandardFrame};
 };
 
+// enum for lifecycle transitions
+enum class HardwareState : uint8_t {
+  kConfigure = 1,
+  kActivate = 2,
+  kRun = 3,
+  kDeactivate = 4,
+  kCleanup = 5,
+  kError = 0
+};
+
 }  // namespace odrive_can_driver
 #endif /* ODRIVE_CAN_DRIVER_CAN_PARSING_H_ */

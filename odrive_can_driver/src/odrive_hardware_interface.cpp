@@ -141,12 +141,15 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_configure(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
   auto can_interface = info_.hardware_parameters.find("interface")->second;
-  return can_.Init(can_interface, *motor_axis_);
+  auto result = can_.Init(can_interface, *motor_axis_);
+  can_.Configure(rclcpp::Clock().now());
+  return result;
 }
 
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_cleanup(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
+  can_.Cleanup(rclcpp::Clock().now());
   can_.Shutdown();
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -160,6 +163,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_shutdown(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
+  can_.Activate(rclcpp::Clock().now());
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
@@ -170,6 +174,8 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_deactivate(
     axis_interface.command = CommandId::kNoCommand;
     axis_interface.Write();
   }
+  can_.Write(rclcpp::Clock().now(), rclcpp::Duration(5, 0));
+  can_.Deactivate(rclcpp::Clock().now());
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -177,7 +183,7 @@ hardware_interface::CallbackReturn OdriveHardwareInterface::on_deactivate(
 hardware_interface::CallbackReturn OdriveHardwareInterface::on_error(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // TODO
+  can_.Error(rclcpp::Clock().now());
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 

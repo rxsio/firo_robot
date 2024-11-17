@@ -5,35 +5,103 @@
 #include <stdexcept>
 namespace odrive_can_driver
 {
-
-void CanWriteThread::operator()()
+void CanWriteThread::Configure(const rclcpp::Time & time)
 {
   // TODO: Parametrize init timeout duration
-  auto deadline = rclcpp::Clock().now() + rclcpp::Duration(5, 0);
+  auto deadline = time + rclcpp::Duration(5, 0);
   // TODO: Synchronize with read loop so initial errors are either read first
   // or they are not read at all before initial ClearErrors
   for (auto & motor_axis : motor_axis_.get()) {
     auto node_id = motor_axis.NodeId();
     Send(node_id, CommandId::kClearErrors, deadline);
+    // Idle
+    Send(node_id, CommandId::kAxisRequestedState, deadline, uint32_t(1));
   }
-  while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
-    std::unique_lock<std::mutex> lock(timestamp_mutex_);
-    wait_for_next_write_.wait(lock);
-    Write(time_ + period_);
-  }
-  // TODO: Parametrize cleanup timeout duration
-  deadline = rclcpp::Clock().now() + rclcpp::Duration(5, 0);
+}
+void CanWriteThread::Activate(const rclcpp::Time & time)
+{
+  auto deadline = time + rclcpp::Duration(5, 0);
   for (auto & motor_axis : motor_axis_.get()) {
-    auto node_id = motor_axis.NodeId();
-    Send(node_id, CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
+    // Startup sequence
+    Send(motor_axis.NodeId(), CommandId::kAxisRequestedState, deadline, uint32_t(2));
+  }
+}
+void CanWriteThread::Deactivate(const rclcpp::Time & time)
+{
+  auto deadline = time + rclcpp::Duration(5, 0);
+  for (auto & motor_axis : motor_axis_.get()) {
+    // Idle
+    Send(motor_axis.NodeId(), CommandId::kAxisRequestedState, deadline, uint32_t(1));
+  }
+}
+void CanWriteThread::Cleanup(const rclcpp::Time & time)
+{
+  // TODO: Parametrize cleanup timeout duration
+  auto deadline = time + rclcpp::Duration(5, 0);
+  for (auto & motor_axis : motor_axis_.get()) {
+    Send(motor_axis.NodeId(), CommandId::kControllerModes, deadline, uint32_t(1), uint32_t(0));
+  }
+}
+void CanWriteThread::Error(const rclcpp::Time & /*time*/) {}
+
+void CanWriteThread::operator()()
+{
+  rclcpp::Time time;
+  rclcpp::Duration period{0, 0};
+  while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
+    std::tie(time, period) = Wait(time);
+    switch (state_) {
+      case HardwareState::kConfigure: {
+        Configure(time);
+        break;
+      }
+      case HardwareState::kActivate: {
+        Activate(time);
+        break;
+      }
+      case HardwareState::kRun: {
+        Write(time, period);
+        break;
+      }
+      case HardwareState::kDeactivate: {
+        Deactivate(time);
+        break;
+      }
+      case HardwareState::kCleanup: {
+        Cleanup(time);
+        break;
+      }
+      case HardwareState::kError: {
+        Error(time);
+        break;
+      }
+    }
   }
 };
-void CanWriteThread::Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
+void CanWriteThread::Notify(
+  const rclcpp::Time & time, const rclcpp::Duration & period, HardwareState state)
 {
-  std::lock_guard<std::mutex> lock(timestamp_mutex_);
+  std::lock_guard<std::mutex> lock(step_mutex_);
   time_ = time;
   period_ = period;
-  wait_for_next_write_.notify_one();
+  state_ = state;
+  step_.notify_one();
+}
+void CanWriteThread::Notify(const rclcpp::Time & time, HardwareState state)
+{
+  std::lock_guard<std::mutex> lock(step_mutex_);
+  time_ = time;
+  period_ = rclcpp::Duration(0, 0);
+  state_ = state;
+  step_.notify_one();
+}
+std::pair<rclcpp::Time, rclcpp::Duration> CanWriteThread::Wait(const rclcpp::Time & previous_time)
+{
+  std::unique_lock<std::mutex> lock(step_mutex_);
+  step_.wait(lock, [this, &previous_time]() {
+    return !run_.load(std::memory_order_relaxed) || time_ != previous_time;
+  });
+  return std::make_pair(time_, period_);
 }
 CanWriteThread::~CanWriteThread()
 {
@@ -72,8 +140,9 @@ bool CanWriteThread::Send(const uint8_t node_id, CommandId command, const rclcpp
   }
 }
 
-void CanWriteThread::Write(const rclcpp::Time & deadline)
+void CanWriteThread::Write(const rclcpp::Time & time, const rclcpp::Duration & period)
 {
+  auto deadline = time + period;
   for (auto & motor_axis : motor_axis_.get()) {
     auto command_id = motor_axis.command.load();
     const auto node_id = motor_axis.NodeId();

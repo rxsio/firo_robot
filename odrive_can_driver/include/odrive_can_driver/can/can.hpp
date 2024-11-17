@@ -15,6 +15,8 @@
 #include <ros2_socketcan/socket_can_id.hpp>
 #include <ros2_socketcan/socket_can_receiver.hpp>
 #include <ros2_socketcan/socket_can_sender.hpp>
+
+#include "odrive_can_driver/can/parsing.hpp"
 namespace odrive_can_driver
 {
 
@@ -29,6 +31,12 @@ public:
     sender_.reset();
     return hardware_interface::CallbackReturn::SUCCESS;
   };
+  void Configure(const rclcpp::Time & time)
+  {
+    sender_->Notify(time, HardwareState::kConfigure);
+    receiver_->Notify(time, HardwareState::kConfigure);
+  };
+  void Activate(const rclcpp::Time & time) { sender_->Notify(time, HardwareState::kActivate); };
   void Write(const rclcpp::Time & time, const rclcpp::Duration & period)
   {
     sender_->Notify(time, period);
@@ -37,6 +45,13 @@ public:
   void Read(const rclcpp::Time & time, const rclcpp::Duration & period)
   {
     receiver_->Notify(time, period);
+  };
+  void Deactivate(const rclcpp::Time & time) { sender_->Notify(time, HardwareState::kDeactivate); };
+  void Cleanup(const rclcpp::Time & time) { sender_->Notify(time, HardwareState::kCleanup); };
+  void Error(const rclcpp::Time & time)
+  {
+    sender_->Notify(time, HardwareState::kError);
+    receiver_->Notify(time, HardwareState::kError);
   };
 
 private:

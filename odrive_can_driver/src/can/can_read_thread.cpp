@@ -51,12 +51,10 @@ void CanReadThread::Receive(const rclcpp::Time & deadline)
   switch (command_id) {
     case CommandId::kEncoderEstimates: {
       odrive_can_driver::Receive<CommandId::kEncoderEstimates>(data, length, motor_axis);
-      last_response_time_ = rclcpp::Clock().now();
       break;
     }
     case CommandId::kIq: {
       odrive_can_driver::Receive<CommandId::kIq>(data, length, motor_axis);
-      last_response_time_ = rclcpp::Clock().now();
       break;
     }
     case CommandId::kControllerError: {
@@ -86,32 +84,85 @@ CanReadThread::~CanReadThread()
 
 void CanReadThread::operator()()
 {
+  rclcpp::Time time;
+  rclcpp::Duration period{0, 0};
   while (rclcpp::ok() && run_.load(std::memory_order_relaxed)) {
-    std::unique_lock<std::mutex> lock(timestamp_mutex_);
-    wait_for_next_read_.wait(lock);
-    lock.unlock();
-    auto deadline = GetDeadline();
-    for (auto & motor_axis : motor_axis_.get()) {
-      const auto node_id = motor_axis.NodeId();
-      SendRTR(node_id, CommandId::kEncoderEstimates, deadline);
-      SendRTR(node_id, CommandId::kIq, deadline);
-      SendRTR(node_id, CommandId::kControllerError, deadline);
-      SendRTR(node_id, CommandId::kMotorError, deadline);
-      SendRTR(node_id, CommandId::kEncoderError, deadline);
-    }
-    while (deadline > rclcpp::Clock().now()) {
-      Receive(deadline);
+    std::tie(time, period) = Wait(time);
+    switch (state_) {
+      case HardwareState::kConfigure: {
+        Configure(time);
+        break;
+      }
+      case HardwareState::kRun: {
+        Read(time, period);
+        break;
+      }
+      case HardwareState::kError: {
+        Error(time);
+        break;
+      }
+      default:
+        break;
     }
   }
 }
 
-void CanReadThread::Notify(const rclcpp::Time & time, const rclcpp::Duration & period)
+void CanReadThread::Notify(
+  const rclcpp::Time & time, const rclcpp::Duration & period, HardwareState state)
 {
-  std::lock_guard<std::mutex> lock(timestamp_mutex_);
+  std::lock_guard<std::mutex> lock(step_mutex_);
   time_ = time;
   period_ = period;
-  wait_for_next_read_.notify_one();
+  state_ = state;
+  step_.notify_one();
 }
+void CanReadThread::Notify(const rclcpp::Time & time, HardwareState state)
+{
+  std::lock_guard<std::mutex> lock(step_mutex_);
+  time_ = time;
+  period_ = rclcpp::Duration(0, 0);
+  state_ = state;
+  step_.notify_one();
+}
+std::pair<rclcpp::Time, rclcpp::Duration> CanReadThread::Wait(const rclcpp::Time & previous_time)
+{
+  std::unique_lock<std::mutex> lock(step_mutex_);
+  step_.wait(lock, [this, &previous_time]() {
+    return !run_.load(std::memory_order_relaxed) || time_ != previous_time;
+  });
+  return std::make_pair(time_, period_);
+}
+
+void CanReadThread::Configure(const rclcpp::Time & time)
+{
+  for (auto & motor_axis : motor_axis_.get()) {
+    const auto node_id = motor_axis.NodeId();
+    SendRTR(node_id, CommandId::kControllerError, time);
+    SendRTR(node_id, CommandId::kMotorError, time);
+    SendRTR(node_id, CommandId::kEncoderError, time);
+  }
+  while (time == Time().first) {
+    Receive(time);
+  }
+}
+
+void CanReadThread::Read(const rclcpp::Time & time, const rclcpp::Duration & period)
+{
+  auto deadline = time + period;
+  for (auto & motor_axis : motor_axis_.get()) {
+    const auto node_id = motor_axis.NodeId();
+    SendRTR(node_id, CommandId::kEncoderEstimates, deadline);
+    SendRTR(node_id, CommandId::kIq, deadline);
+    SendRTR(node_id, CommandId::kControllerError, deadline);
+    SendRTR(node_id, CommandId::kMotorError, deadline);
+    SendRTR(node_id, CommandId::kEncoderError, deadline);
+  }
+  while (deadline > rclcpp::Clock().now() && time == Time().first) {
+    Receive(deadline);
+  }
+}
+
+void CanReadThread::Error(const rclcpp::Time & /*time*/) {}
 
 void CanReadThread::SendRTR(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline)
 {
