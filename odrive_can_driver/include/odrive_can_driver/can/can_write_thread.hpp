@@ -33,11 +33,14 @@ public:
   : motor_axis_(motor_axis), sender_(can_interface)
   {
     // We can't pass this object directly, because it's not copyable
-    // (drivers::socketcan::SocketCanReceiver and other data members are not copyable)
+    // (drivers::socketcan::SocketCanReceiver, std::thread itself and other data members are not copyable)
     thread_ = std::thread(std::ref(*this));
   }
   void operator()();
-  void Notify(const rclcpp::Time & time, const rclcpp::Duration & period);
+  void Notify(
+    const rclcpp::Time & time, const rclcpp::Duration & period,
+    HardwareState state = HardwareState::kRun);
+  void Notify(const rclcpp::Time & time, HardwareState state = HardwareState::kRun);
   ~CanWriteThread();
 
 private:
@@ -46,10 +49,13 @@ private:
   drivers::socketcan::SocketCanSender sender_;
   rclcpp::Time time_{0};
   rclcpp::Duration period_{0, 0};
-  std::mutex timestamp_mutex_;
-  std::condition_variable wait_for_next_write_;
+  std::mutex step_mutex_;
+  std::condition_variable step_;
   std::atomic<bool> run_{true};
   const rclcpp::Duration k_min_timeout_{0, 1000000};
+  HardwareState state_{};
+
+  std::pair<rclcpp::Time, rclcpp::Duration> Wait(const rclcpp::Time & previous_time);
 
   template <typename... T>
   bool Send(
@@ -86,7 +92,12 @@ private:
     }
   }
   bool Send(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline);
-  void Write(const rclcpp::Time & deadline);
+  void Configure(const rclcpp::Time & time);
+  void Activate(const rclcpp::Time & time);
+  void Write(const rclcpp::Time & time, const rclcpp::Duration & period);
+  void Deactivate(const rclcpp::Time & time);
+  void Cleanup(const rclcpp::Time & time);
+  void Error(const rclcpp::Time & time);
 };
 
 }  // namespace odrive_can_driver

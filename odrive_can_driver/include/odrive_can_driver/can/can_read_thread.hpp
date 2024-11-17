@@ -40,7 +40,11 @@ public:
   }
   ~CanReadThread();
   void operator()();
-  void Notify(const rclcpp::Time & time, const rclcpp::Duration & period);
+
+  void Notify(
+    const rclcpp::Time & time, const rclcpp::Duration & period,
+    HardwareState state = HardwareState::kRun);
+  void Notify(const rclcpp::Time & time, HardwareState state = HardwareState::kRun);
 
 private:
   std::reference_wrapper<std::vector<MotorAxis>> motor_axis_;
@@ -49,24 +53,30 @@ private:
   drivers::socketcan::SocketCanSender sender_;
   rclcpp::Time time_{0};
   rclcpp::Duration period_{0, 0};
-  rclcpp::Time last_response_time_{0, 0};
-  std::mutex timestamp_mutex_;
-  std::condition_variable wait_for_next_read_;
+  std::mutex step_mutex_;
+  std::condition_variable step_;
   std::atomic<bool> run_{true};
   const rclcpp::Duration k_min_timeout_{0, 1000000};
+  HardwareState state_{};
 
   void SendRTR(const uint8_t node_id, CommandId command, const rclcpp::Time & deadline);
+  void Receive(const rclcpp::Time & deadline);
 
-  rclcpp::Time GetDeadline()
+  std::pair<rclcpp::Time, rclcpp::Duration> Time()
   {
-    std::lock_guard<std::mutex> lock(timestamp_mutex_);
-    return time_ + period_;
+    std::lock_guard<std::mutex> lock(step_mutex_);
+    return std::make_pair(time_, period_);
   }
+
+  std::pair<rclcpp::Time, rclcpp::Duration> Wait(const rclcpp::Time & previous_time);
+
   static std::chrono::nanoseconds GetTimeout(const rclcpp::Time & deadline)
   {
     return (deadline - rclcpp::Clock().now()).to_chrono<std::chrono::nanoseconds>();
   }
-  void Receive(const rclcpp::Time & deadline);
+  void Configure(const rclcpp::Time & time);
+  void Read(const rclcpp::Time & time, const rclcpp::Duration & period);
+  void Error(const rclcpp::Time & time);
 };
 
 template <odrive_can_driver::CommandId C>
