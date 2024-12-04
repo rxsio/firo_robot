@@ -1,4 +1,5 @@
 
+#include <algorithm>
 #include <cstddef>
 #include <odrive_can_driver/can/can_read_thread.hpp>
 #include <rclcpp/duration.hpp>
@@ -40,13 +41,17 @@ void CanReadThread::Receive(const rclcpp::Time & deadline)
   if (can_id.frame_type() != drivers::socketcan::FrameType::DATA) {
     return;
   }
-  auto [node_id, command_id] = ParseCanId(can_id);
-  auto & motor_axis_1 = motor_axis_.get()[0];
-  auto & motor_axis_2 = motor_axis_.get()[1];
-  auto & motor_axis = motor_axis_1.NodeId() == node_id ? motor_axis_1 : motor_axis_2;
-  if (motor_axis.NodeId() != node_id) {
+  unsigned char node_id = 0;
+  CommandId command_id = CommandId::kNoCommand;
+  std::tie(node_id, command_id) = ParseCanId(can_id);
+  auto motor_axis_it = std::find_if(
+    motor_axis_.get().begin(), motor_axis_.get().end(),
+    [node_id](const auto & motor_axis) { return motor_axis.NodeId() == node_id; });
+  if (motor_axis_it == motor_axis_.get().end()) {
     return;
   }
+  auto & motor_axis = *motor_axis_it;
+
   auto length = can_id.length();
   switch (command_id) {
     case CommandId::kEncoderEstimates: {
