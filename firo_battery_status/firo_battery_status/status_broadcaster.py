@@ -40,12 +40,13 @@ def main(args=None):
     rclpy.init(args=args)
 
     status_broadcaster = StatusBroadcaster()
-
-    rclpy.spin(status_broadcaster)
-
+    
+    try:
+        rclpy.spin(status_broadcaster)
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+        pass
+    rclpy.try_shutdown()
     status_broadcaster.destroy_node()
-    rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
