@@ -5,10 +5,10 @@ from ros2_socketcan_msgs.msg import FdFrame
 from sensor_msgs.msg import BatteryState
 
 
-class SendStatus(Node):
+class StatusBroadcaster(Node):
 
     def __init__(self):
-        super().__init__('send_status')
+        super().__init__('status_broadcaster')
         self.publisher_battery_state = self.create_publisher(BatteryState, 'battery_state', 10)
         self.publisher_can_frame = self.create_publisher(FdFrame, 'can_frame', 10)
         self.timer = self.create_timer(1.0, self.publish_rtr)
@@ -39,11 +39,11 @@ class SendStatus(Node):
 def main(args=None):
     rclpy.init(args=args)
 
-    send_status = SendStatus()
+    status_broadcaster = StatusBroadcaster()
 
-    rclpy.spin(send_status)
+    rclpy.spin(status_broadcaster)
 
-    send_status.destroy_node()
+    status_broadcaster.destroy_node()
     rclpy.shutdown()
 
 

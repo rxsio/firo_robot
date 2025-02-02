@@ -20,7 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'send_status = firo_battery_status.send_status:main'
+            'status_broadcaster = firo_battery_status.status_broadcaster:main'
         ],
     },
 )
