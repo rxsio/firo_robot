@@ -11,7 +11,8 @@ class StatusBroadcaster(Node):
         super().__init__('status_broadcaster')
         self.publisher_battery_state = self.create_publisher(BatteryState, 'battery_state', 10)
         self.publisher_can_frame = self.create_publisher(FdFrame, 'can_frame', 10)
-        self.timer = self.create_timer(1.0, self.publish_rtr)
+        self.declare_parameter('update_period', 1.0)
+        self.timer = self.create_timer(self.get_parameter('update_period').value, self.publish_rtr)
         self.i = 0
         self.get_voltage= self.create_subscription(
             FdFrame,
