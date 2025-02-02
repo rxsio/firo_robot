@@ -11,10 +11,10 @@ class StatusBroadcaster(Node):
     def __init__(self):
         super().__init__('status_broadcaster')
         self.publisher_battery_state = self.create_publisher(BatteryState, 'battery_state', 10)
-        self.publisher_can = self.create_publisher(Frame, 'can_frame', 10)
+        self.publisher_can = self.create_publisher(Frame, 'to_can_bus', 10)
         self.subscriber_can= self.create_subscription(
             Frame,
-            'can_frame',
+            'from_can_bus',
             self.battery_callback,
             10)
         
