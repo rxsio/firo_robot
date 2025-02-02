@@ -18,11 +18,13 @@ class StatusBroadcaster(Node):
             self.battery_callback,
             10)
         
+        self.declare_parameter('can_id', 0x461)
+        self.can_id = self.get_parameter('can_id').value
         self.declare_parameter('update_period', 1.0)
         self.timer = self.create_timer(self.get_parameter('update_period').value, self.publish_rtr)
 
     def battery_callback(self, msg):
-        if msg.id != 0x461 or msg.is_rtr or msg.dlc != 2:
+        if msg.id != self.can_id or msg.is_rtr or msg.dlc != 2:
             return
         data = bytearray(msg.data[0:2])
         # < means little-endian, H means uint16_t
@@ -37,7 +39,7 @@ class StatusBroadcaster(Node):
         msg = Frame()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.is_rtr = True
-        msg.id = 0x461
+        msg.id = self.can_id
         self.publisher_can.publish(msg)
 
 
