@@ -2,4 +2,9 @@
         <include file="$(find-pkg-share firo_bringup)/launch/hardware_interfaces.launch" />
         <include file="$(find-pkg-share firo_control)/launch/controllers.launch"/>
         <include file="$(find-pkg-share firo_bringup)/launch/web_bridge.launch" />
+        <include file="$(find-pkg-share ros2_socketcan)/launch/socket_can_bridge.launch.xml">
+                <arg name="from_can_bus_topic" value="/from_can_bus"/>
+                <arg name="to_can_bus_topic" value="/to_can_bus"/>
+        </include>
+        <node pkg="firo_battery_status" type="status_broadcaster" name="status_broadcaster" output="screen"/>
 </launch>
