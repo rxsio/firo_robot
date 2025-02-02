@@ -1,3 +1,4 @@
+import struct
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -23,8 +24,10 @@ class StatusBroadcaster(Node):
     def battery_callback(self, msg):
         if msg.id != 0x461 or msg.is_rtr or msg.dlc != 2:
             return
-        data = msg.data
-        voltage = float((data[1] << 8) | data[0])
+        data = bytearray(msg.data[0:2])
+        # < means little-endian, H means uint16_t
+        # we divide by 1000 to convert from mV to V
+        voltage = float(struct.unpack('<H', data)[0]) / 1000.0
         battery = BatteryState()
         battery.voltage = voltage
         self.publisher_battery_state.publish(battery)
