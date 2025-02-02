@@ -13,7 +13,6 @@ class StatusBroadcaster(Node):
         self.publisher_can_frame = self.create_publisher(FdFrame, 'can_frame', 10)
         self.declare_parameter('update_period', 1.0)
         self.timer = self.create_timer(self.get_parameter('update_period').value, self.publish_rtr)
-        self.i = 0
         self.get_voltage= self.create_subscription(
             FdFrame,
             'can_frame',
@@ -34,7 +33,6 @@ class StatusBroadcaster(Node):
         msg = FdFrame()
         msg.id = 0x461
         self.publisher_can_frame.publish(msg)
-        self.i += 1
 
 
 def main(args=None):
