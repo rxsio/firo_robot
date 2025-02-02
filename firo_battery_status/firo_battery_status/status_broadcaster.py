@@ -10,8 +10,8 @@ class StatusBroadcaster(Node):
     def __init__(self):
         super().__init__('status_broadcaster')
         self.publisher_battery_state = self.create_publisher(BatteryState, 'battery_state', 10)
-        self.publisher_can_frame = self.create_publisher(Frame, 'can_frame', 10)
-        self.get_voltage= self.create_subscription(
+        self.publisher_can = self.create_publisher(Frame, 'can_frame', 10)
+        self.subscriber_can= self.create_subscription(
             Frame,
             'can_frame',
             self.battery_callback,
@@ -35,7 +35,7 @@ class StatusBroadcaster(Node):
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.is_rtr = True
         msg.id = 0x461
-        self.publisher_can_frame.publish(msg)
+        self.publisher_can.publish(msg)
 
 
 def main(args=None):
