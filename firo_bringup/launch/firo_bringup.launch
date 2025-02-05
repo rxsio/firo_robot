@@ -6,5 +6,5 @@
                 <arg name="from_can_bus_topic" value="/from_can_bus"/>
                 <arg name="to_can_bus_topic" value="/to_can_bus"/>
         </include>
-        <node pkg="firo_battery_status" type="status_broadcaster" name="status_broadcaster" output="screen"/>
+        <node pkg="firo_battery_status" exec="status_broadcaster" name="status_broadcaster" output="screen"/>
 </launch>
