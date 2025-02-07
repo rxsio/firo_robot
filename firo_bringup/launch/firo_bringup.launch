@@ -6,5 +6,8 @@
                 <arg name="from_can_bus_topic" value="/from_can_bus"/>
                 <arg name="to_can_bus_topic" value="/to_can_bus"/>
         </include>
-        <node pkg="firo_battery_status" exec="status_broadcaster" name="status_broadcaster" output="screen" param=[{"max_voltage": 40.5, "min_voltage":32.0}]/>
+        <node pkg="firo_battery_status" exec="status_broadcaster" name="status_broadcaster" output="screen">
+                <param name="max_voltage" value="40.0"/>
+                <param name="min_voltage" value="30.0"/>
+        </node>
 </launch>
