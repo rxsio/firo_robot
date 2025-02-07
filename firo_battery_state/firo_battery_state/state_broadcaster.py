@@ -42,7 +42,7 @@ class StateBroadcaster(Node):
         if voltage < self.min_voltage:
             return 0.0
         if voltage > self.max_voltage:
-            return 100.0
+            return 1.0
         return (voltage - self.min_voltage) / (self.max_voltage - self.min_voltage)
 
         
