@@ -1,8 +1,8 @@
 launch:
   - node:
-      pkg: "firo_battery_status"
-      exec: "status_broadcaster"
-      name: "status_broadcaster"
+      pkg: "firo_battery_state"
+      exec: "state_broadcaster"
+      name: "state_broadcaster"
       param:
       -
         name: "max_voltage"

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>firo_battery_status</name>
+  <name>firo_battery_state</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
   <maintainer email="klaudiacoding@gmail.com">klaudia</maintainer>

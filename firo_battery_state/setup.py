@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 import os
 from glob import glob
-package_name = 'firo_battery_status'
+package_name = 'firo_battery_state'
 
 setup(
     name=package_name,
@@ -23,7 +23,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'status_broadcaster = firo_battery_status.status_broadcaster:main'
+            'state_broadcaster = firo_battery_state.state_broadcaster:main'
         ],
     },
 )
