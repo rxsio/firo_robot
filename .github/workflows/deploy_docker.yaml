@@ -3,6 +3,8 @@ on:
     branches:
       - "main"
       - "humble"
+  workflow_dispatch:
+
 jobs:
   deploy-main-image:
     name: Build and deploy main docker image
