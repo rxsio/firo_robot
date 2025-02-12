@@ -4,6 +4,15 @@ on:
       - "main"
       - "humble"
   workflow_dispatch:
+    inputs:
+      force_build:
+        description: "Force build and push even if no new version is created"
+        required: false
+        default: "false"
+      manual_version:
+        description: "Manually specify the version (optional)"
+        required: false
+        default: ""
 
 jobs:
   deploy-main-image:
@@ -20,7 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Extract branch name
-        run: echo "BRANCH=$(git rev-parse --abbrev-ref HEAD)" >>${GITHUB_ENV}
+        run: echo "BRANCH=${GITHUB_REF##*/}" >>${GITHUB_ENV}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,25 +43,34 @@ jobs:
         id: semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release -t "${{env.BRANCH}}-\${version}"
+        run: |
+          if [[ -n "${{ inputs.manual_version }}" ]]; then
+            echo "next_version=${{ inputs.manual_version }}" >> $GITHUB_ENV
+          else
+            VERSION=$(npx semantic-release -t "${{env.BRANCH}}-\${version}")
+            if [[ $? -eq 0 ]]; then
+              echo "next_version=$VERSION" >> $GITHUB_ENV
+            fi
+          fi
 
-      # github.repository_owner can contain uppercase chars,
-      # but docker repository address must be all lowercase
+      - name: Force build if enabled
+        run: echo "FORCE_BUILD=${{ inputs.force_build }}" >> $GITHUB_ENV
+
       - name: lowercase image name
-        if: ${{ steps.semantic-release.outputs.next_version || false }}
+        if: env.next_version || env.FORCE_BUILD == 'true'
         run: |
           echo "MAIN_IMAGE=${MAIN_IMAGE,,}" >>${GITHUB_ENV}
 
       - name: Set up QEMU
-        if: ${{ steps.semantic-release.outputs.next_version || false }}
+        if: env.next_version || env.FORCE_BUILD == 'true'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        if: ${{ steps.semantic-release.outputs.next_version || false }}
+        if: env.next_version || env.FORCE_BUILD == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
-        if: ${{ steps.semantic-release.outputs.next_version || false }}
+        if: env.next_version || env.FORCE_BUILD == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -60,14 +78,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and Push image
-        if: ${{ steps.semantic-release.outputs.next_version || false }}
+        if: env.next_version || env.FORCE_BUILD == 'true'
         uses: docker/build-push-action@v6
         with:
           file: Dockerfile
           push: true
-          provenance: false # Remove in the future. Currently ghcr does not parse it correctly
+          provenance: false
           tags: |
-            ${{ env.MAIN_IMAGE }}:${{env.BRANCH}}-${{steps.semantic-release.outputs.next_version}}
+            ${{ env.MAIN_IMAGE }}:${{env.BRANCH}}-${{env.next_version}}
             ${{ env.MAIN_IMAGE }}:${{env.BRANCH}}
           platforms: ${{ env.PLATFORM }}
           cache-from: ${{ env.MAIN_IMAGE }}:${{env.BRANCH}}
