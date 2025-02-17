@@ -1,20 +1,25 @@
 {
         "branches": [
-                "main",
-                "humble"
+          "main",
+          "humble",
+          {
+            "name": "*",
+            "prerelease": true
+          }
         ],
         "plugins": [
-                [
-                        "@semantic-release/exec",
-                        {
-                                "verifyReleaseCmd": "echo \"next_version=${nextRelease.version}\" >> $GITHUB_OUTPUT"
-                        }
-                ],
-                [
-                        "@semantic-release/commit-analyzer",
-                        {
-                                "preset": "conventionalcommits"
-                        }
-                ]
+          [
+            "@semantic-release/exec",
+            {
+              "verifyReleaseCmd": "echo \"next_version=${nextRelease.version}\" >> $GITHUB_OUTPUT"
+            }
+          ],
+          [
+            "@semantic-release/commit-analyzer",
+            {
+              "preset": "conventionalcommits"
+            }
+          ]
         ]
-}
+      }
+      
