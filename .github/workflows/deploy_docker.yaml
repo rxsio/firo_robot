@@ -4,7 +4,6 @@ on:
       - "main"
       - "humble"
   workflow_dispatch:
-
 jobs:
   deploy-main-image:
     name: Build and deploy main docker image
@@ -40,7 +39,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION=$(npx semantic-release -t "${{env.BRANCH}}-\${version}" 2>&1 | grep -oP '(?<=Published release ).*' || echo "")
+          VERSION=$(npx semantic-release -t "${{env.BRANCH}}-\${version}" 2>&1 | grep -oP '(?<=Published release )\d+\.\d+\.\d+' || echo "")
           if [ -z "$VERSION" ]; then
             VERSION="latest"
           fi
