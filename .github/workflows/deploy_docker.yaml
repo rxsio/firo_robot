@@ -4,6 +4,7 @@ on:
       - "main"
       - "humble"
   workflow_dispatch:
+
 jobs:
   deploy-main-image:
     name: Build and deploy main docker image
@@ -21,9 +22,11 @@ jobs:
       - name: Extract branch name
         run: |
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "BRANCH=${{ github.ref_name }}" >>${GITHUB_ENV}
+            SAFE_BRANCH=$(echo "${{ github.ref_name }}" | tr '/' '-')
+            echo "BRANCH=$SAFE_BRANCH" >>${GITHUB_ENV}
           else
-            echo "BRANCH=$(git rev-parse --abbrev-ref HEAD)" >>${GITHUB_ENV}
+            SAFE_BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '-')
+            echo "BRANCH=$SAFE_BRANCH" >>${GITHUB_ENV}
           fi
 
       - name: Setup Node.js
