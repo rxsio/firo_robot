@@ -1,5 +1,6 @@
 import struct
 import rclpy
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from can_msgs.msg import Frame
 from sensor_msgs.msg import BatteryState
@@ -58,9 +59,10 @@ def main(args=None):
     rclpy.init(args=args)
 
     state_broadcaster = StateBroadcaster()
-    
+    executor = MultiThreadedExecutor()
+    executor.add_node(state_broadcaster)
     try:
-        rclpy.spin(state_broadcaster)
+        executor.spin()
     except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
         pass
     rclpy.try_shutdown()
