@@ -2,6 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
+
 package_name = 'firo_measurements'
 
 setup(
@@ -13,6 +14,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name), glob('launch/*launch.[pxy][yma]*')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml'))
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -23,7 +25,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'measurements_subscriber= firo_measurements.measurements_subscriber:main'
+            'telemetry_node= firo_measurements.telemetry_node:main'
         ],
     },
 )

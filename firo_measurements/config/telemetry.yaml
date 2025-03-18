@@ -1,0 +1,36 @@
+outputs:  
+  influx:
+    url: "<url>"
+    token: "TOKEN"
+    bucket: "firo2"
+    org: "RXSIO"
+
+topics:
+  # - name: "/battery_state"
+  #   measurements:
+  #     - name: "power"
+  #       fields:
+  #         - field: "voltage"
+  #           value: "$msg.voltage"
+  #           tags:
+  #             source: "battery"
+  #         - field: "current"
+  #           value: "$msg.current"
+  #           tags:
+  #             source: "battery"
+  # - name: "/motors"
+  #   measurements:
+  #     - name: "motors"
+  #       fields:
+  #         - field: "torque"
+  #           value: "$msg.motors.[0].torque"
+  #           tags:
+  #             motor_id: "$msg.motors.[0].id"
+  - name: "/cmd_vel"
+    measurements:
+      - name: "cmd_vel"
+        fields:
+          - field: "linear_x"
+            value: "$msg.linear.x"
+          - field: "angular_z"
+            value: "$msg.angular.z"
