@@ -5,7 +5,9 @@ from firo_measurements.configuration import Topic, Influx, validate_configuratio
 import yaml
 from pydantic import ValidationError
 from typing import List, Union, Dict
-
+import influxdb_client
+from influxdb_client import Point
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 
 class FieldType:
@@ -27,6 +29,16 @@ class TelemetryNode(Node):
         self._configuration = None
         self.load_configuration()
         self._topics = {}
+
+        self.influx = influxdb_client.InfluxDBClient(
+            url=self._configuration.outputs.influx.url,
+            token=self._configuration.outputs.influx.token,
+            org=self._configuration.outputs.influx.org
+        )
+        self.influx_write = self.influx.write_api(
+            write_options=SYNCHRONOUS,
+            error_callback=lambda x, y, z: self.get_logger().warn(f"{x} {y} {z}")
+        )
         
         
 
@@ -89,7 +101,7 @@ class TelemetryNode(Node):
                 
             except Exception as e:
                 self.get_logger().error(f'Failed to register topic: {e}')
-
+                
         self.get_logger().info('Registered topics with known message type')
 
 
@@ -189,6 +201,25 @@ class TelemetryNode(Node):
             value = field.get('value')
             tags = field.get('tags')
             self.get_logger().info(f'Received message on topic: {name}, field:{name_field}, value:{value}, tags:{tags}')
+
+        records = []
+
+        records = [
+            Point.from_dict({
+                "measurement": name,
+                "tags": field.get("tags"),
+                "fields": { field.get("field"): field.get("value") }
+            })
+
+            for field in fields
+        ]
+
+        self.influx_write.write(
+            bucket=self._configuration.outputs.influx.bucket,
+            org=self._configuration.outputs.influx.org,
+            record=records
+        )
+        self.influx_write.flush()
 
        
 

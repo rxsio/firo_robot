@@ -1,7 +1,7 @@
 outputs:  
   influx:
-    url: "<url>"
-    token: "TOKEN"
+    url: "http://localhost:8086"
+    token: "<TOKEN>"
     bucket: "firo2"
     org: "RXSIO"
 
