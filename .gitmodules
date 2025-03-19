@@ -1,3 +1,7 @@
 [submodule "radconpy"]
 	path = radconpy
 	url = https://github.com/rxsio/radconpy.git
+[submodule "rxsio_telemetry"]
+	path = rxsio_telemetry
+	url = git@github.com:rxsio/rxsio_telemetry.git
+	branch = humble
