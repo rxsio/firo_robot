@@ -3,8 +3,8 @@
 <package format="3">
   <name>firo_measurements</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="klaudiacoding@gmail.com">klaudia</maintainer>
+  <description>Nodes to synchronize robot telemetry from ROS topics with InfluxDB</description>
+  <maintainer email="klaudiacoding@gmail.com">Klaudia Niedziałkowska</maintainer>
   <license>Apache-2.0</license>
 
   <test_depend>ament_copyright</test_depend>
