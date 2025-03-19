@@ -5,13 +5,13 @@ from ament_index_python.packages import get_package_share_directory
 
 def generate_launch_description():
     telemetry_yaml = os.path.join(
-        get_package_share_directory('firo_measurements'),
+        get_package_share_directory('rxsio_telemetry'),
         'config',
         'telemetry.yaml'
     )
     return LaunchDescription([
         Node(
-            package='firo_measurements',
+            package='rxsio_telemetry',
             executable='telemetry_node',
             name='telemetry_node',
             output='screen',

@@ -3,7 +3,7 @@ import os
 from glob import glob
 
 
-package_name = 'firo_measurements'
+package_name = 'rxsio_telemetry'
 
 setup(
     name=package_name,
@@ -22,10 +22,10 @@ setup(
     maintainer_email='klaudiacoding@gmail.com',
     description='Nodes to synchronize robot telemetry from ROS topics with InfluxDB',
     license='Apache-2.0',
-    tests_require=['pytest'],
+    # tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'telemetry_node= firo_measurements.telemetry_node:main'
+            'telemetry_node= rxsio_telemetry.telemetry_node:main'
         ],
     },
 )
