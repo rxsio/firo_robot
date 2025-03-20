@@ -10,4 +10,7 @@
                 <param name="max_voltage" value="40.0"/>
                 <param name="min_voltage" value="30.0"/>
         </node>
+        <node pkg="rxsio_telemetry" exec="telemetry_node" output="screen">
+                <param name="telemetry_yaml" value="$(find-pkg-share firo_bringup)/config/telemetry.yaml"/>
+        </node>
 </launch>

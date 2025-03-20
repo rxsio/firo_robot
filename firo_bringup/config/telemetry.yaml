@@ -1,0 +1,16 @@
+outputs:  
+  influx:
+    url: "http://localhost:8086"
+    token: "<TOKEN>"
+    bucket: "firo2"
+    org: "RXSIO"
+
+topics:
+  - name: "/cmd_vel"
+    measurements:
+      - name: "cmd_vel"
+        fields:
+          - field: "linear_x"
+            value: "$msg.linear.x"
+          - field: "angular_z"
+            value: "$msg.angular.z"
