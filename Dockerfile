@@ -23,7 +23,7 @@ WORKDIR /ros2
 COPY --from=build /ros2/install /ros2/install
 
 RUN apt-get update \
-        && apt-get install -y python3-rosdep \
+        && apt-get install -y python3-rosdep python3-pip\
         && rosdep init \
         && rosdep update \
         && source /opt/ros/$ROS_DISTRO/setup.bash \

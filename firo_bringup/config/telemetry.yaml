@@ -1,0 +1,66 @@
+outputs:
+  influx:
+    url: "http://localhost:8086"
+    token: "<TOKEN>"
+    bucket: "firo2"
+    org: "RXSIO"
+
+topics:
+  - name: "/cmd_vel"
+    measurements:
+      - name: "cmd_vel"
+        fields:
+          - field: "linear_x"
+            value: "$msg.linear.x"
+          - field: "angular_z"
+            value: "$msg.angular.z"
+  - name: "/battery_state"
+    measurements:
+      - name: "power"
+        fields:
+          - field: "voltage"
+            value: "$msg.voltage"
+            tags:
+              component: "battery_pack"
+  - name: "/cpm"
+    measurements:
+      - name: "cpm_raw"
+        fields:
+          - field: "cpm"
+            value: "$msg.cpm"
+  - name: "/joint_states"
+    measurements:
+      - name: "wheels"
+        fields:
+          - field: "effort"
+            value: "$msg.effort.[0]"
+            tags:
+              joint: "$msg.name.[0]"
+          - field: "effort"
+            value: "$msg.effort.[1]"
+            tags:
+              joint: "$msg.name.[1]"
+          - field: "effort"
+            value: "$msg.effort.[2]"
+            tags:
+              joint: "$msg.name.[2]"
+          - field: "effort"
+            value: "$msg.effort.[3]"
+            tags:
+              joint: "$msg.name.[3]"
+          - field: "velocity"
+            value: "$msg.velocity.[0]"
+            tags:
+              joint: "$msg.name.[0]"
+          - field: "velocity"
+            value: "$msg.velocity.[1]"
+            tags:
+              joint: "$msg.name.[1]"
+          - field: "velocity"
+            value: "$msg.velocity.[2]"
+            tags:
+              joint: "$msg.name.[2]"
+          - field: "velocity"
+            value: "$msg.velocity.[3]"
+            tags:
+              joint: "$msg.name.[3]"

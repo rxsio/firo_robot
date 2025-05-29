@@ -12,6 +12,7 @@
   <exec_depend>firo_description</exec_depend>
   <exec_depend>rosbridge_server</exec_depend>
   <exec_depend>ros2_socketcan</exec_depend>
+  <exec_depend>rxsio_telemetry</exec_depend>
   <export>
     <build_type>ament_cmake</build_type>
   </export>
