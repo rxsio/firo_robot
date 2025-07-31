@@ -5,3 +5,6 @@
 	path = rxsio_telemetry
 	url = https://github.com/rxsio/rxsio_telemetry.git
 	branch = humble
+[submodule "ldrobot-lidar-ros2"]
+	path = ldrobot-lidar-ros2
+	url = https://github.com/Myzhar/ldrobot-lidar-ros2.git
