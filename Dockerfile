@@ -26,7 +26,7 @@ COPY entrypoint.sh /ros2/entrypoint.sh
 
 RUN chmod +x /ros2/entrypoint.sh \
         && apt-get update \
-        && apt-get install -y python3-rosdep python3-pip \
+        && apt-get install -y python3-rosdep python3-pip  ros-humble-rmw-fastrtps-cpp ros-humble-fastrtps\
         && rosdep init \
         && rosdep update \
         && source /opt/ros/$ROS_DISTRO/setup.bash \
