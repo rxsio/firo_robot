@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+# Set env vars
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export FASTRTPS_DEFAULT_PROFILES_FILE=/ros2/fastdds_profile.xml
+
+# Source ROS setup
+source /ros2/install/setup.bash
+
+# Reset ros daemon
+ros2 daemon stop
+ros2 daemon start
+
+# Start discovery server in the background
+fastdds discovery -i 0 -l 100.75.18.108 -p 11811 &
+DISCOVERY_PID=$!
+
+# Give 2 seconds for sertver to setup
+sleep 2
+
+# Start ROS launch
+ros2 launch firo_bringup firo_bringup.launch
+
+# After launch finishes wait for discovery server
+wait $DISCOVERY_PID
