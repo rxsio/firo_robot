@@ -12,11 +12,16 @@ source /ros2/install/setup.bash
 ros2 daemon stop
 ros2 daemon start
 
+# Give 2 seconds for daemon to setup
+sleep 2
+
 # Start discovery server in the background
+echo ">>> Starting Fast DDS discovery server..."
 fastdds discovery -i 0 -l 100.75.18.108 -p 11811 &
 DISCOVERY_PID=$!
+echo ">>> Discovery server PID: $DISCOVERY_PID"
 
-# Give 2 seconds for sertver to setup
+# Give 2 seconds for server to setup
 sleep 2
 
 # Start ROS launch
