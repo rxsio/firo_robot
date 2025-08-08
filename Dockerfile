@@ -21,7 +21,7 @@ SHELL ["/bin/bash", "-c"]
 
 WORKDIR /ros2
 COPY --from=build /ros2/install /ros2/install
-COPY fastdds_profile.xml /ros2/fastdds_profile.xml
+COPY super_client.xml /ros2/super_client.xml
 COPY entrypoint.sh /ros2/entrypoint.sh
 
 RUN chmod +x /ros2/entrypoint.sh \
