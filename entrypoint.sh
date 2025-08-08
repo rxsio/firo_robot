@@ -16,16 +16,16 @@ ros2 daemon start
 sleep 2
 
 # Start discovery server in the background
-echo ">>> Starting Fast DDS discovery server..."
 fastdds discovery -i 0 -l 100.75.18.108 -p 11811 &
 DISCOVERY_PID=$!
-echo ">>> Discovery server PID: $DISCOVERY_PID"
 
 # Give 2 seconds for server to setup
 sleep 2
 
 # Start ROS launch
-ros2 launch firo_bringup firo_bringup.launch
+ros2 launch firo_bringup firo_bringup.launch &
+LAUNCH_PID=$!
 
-# After launch finishes wait for discovery server
+# Wait for both to keep container alive
 wait $DISCOVERY_PID
+wait $LAUNCH_PID
