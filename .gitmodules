@@ -8,3 +8,6 @@
 [submodule "ldrobot-lidar-ros2"]
 	path = ldrobot-lidar-ros2
 	url = https://github.com/Myzhar/ldrobot-lidar-ros2.git
+[submodule "bno055"]
+	path = bno055
+	url = https://github.com/flynneva/bno055.git
