@@ -10,7 +10,4 @@
 	url = https://github.com/flynneva/bno055.git
 [submodule "ldlidar_sl_ros2"]
 	path = ldlidar_sl_ros2
-	url = https://github.com/ldrobotSensorTeam/ldlidar_sl_ros2.git
-[submodule "lib/ldlidar_sl_ros2"]
-	path = lib/ldlidar_sl_ros2
 	url = https://github.com/YoshidoSan/ldlidar_sl_ros2.git
