@@ -3,6 +3,7 @@ set -e
 
 # Set env vars
 #export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 #export FASTRTPS_DEFAULT_PROFILES_FILE=/ros2/super_client.xml
 
 # Source ROS setup
