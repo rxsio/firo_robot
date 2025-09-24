@@ -21,9 +21,12 @@ SHELL ["/bin/bash", "-c"]
 
 WORKDIR /ros2
 COPY --from=build /ros2/install /ros2/install
+COPY super_client.xml /ros2
+COPY entrypoint.sh /ros2
 
-RUN apt-get update \
-        && apt-get install -y python3-rosdep python3-pip\
+RUN chmod +x /ros2/entrypoint.sh \
+        && apt-get update \
+        && apt-get install -y python3-rosdep python3-pip  ros-humble-rmw-fastrtps-cpp ros-humble-fastrtps ros-humble-rmw-cyclonedds-cpp\
         && rosdep init \
         && rosdep update \
         && source /opt/ros/$ROS_DISTRO/setup.bash \
@@ -35,4 +38,4 @@ RUN apt-get update \
         && echo "source $PWD/install/setup.bash" >> ~/.bashrc
 
 # Set the default entrypoint
-CMD ["/bin/bash", "-c", "source /ros2/install/setup.bash && ros2 launch firo_bringup firo_bringup.launch"]
+CMD ["/bin/bash", "/ros2/entrypoint.sh"]
